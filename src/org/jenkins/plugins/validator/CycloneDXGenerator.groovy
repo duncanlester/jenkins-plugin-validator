@@ -1,6 +1,7 @@
 package org.jenkins.plugins.validator
 
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
 
 class CycloneDXGenerator implements Serializable {
     private static final long serialVersionUID = 1L
@@ -12,8 +13,11 @@ class CycloneDXGenerator implements Serializable {
     }
     
     String generate(List plugins, List vulnerabilities) {
-        def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        def jenkinsVersion = Jenkins.instance.version.toString()  // Convert to String
+        def sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
+        sdf.setTimeZone(TimeZone.getTimeZone('UTC'))
+        def timestamp = sdf.format(new Date())
+        
+        def jenkinsVersion = Jenkins.instance.version.toString()
         
         def sbom = [
             bomFormat: "CycloneDX",
@@ -57,7 +61,7 @@ class CycloneDXGenerator implements Serializable {
                 type: "library",
                 "bom-ref": "pkg:jenkins/plugin/${plugin.shortName}@${plugin.version}",
                 name: plugin.shortName,
-                version: plugin.version.toString(),  // Ensure String
+                version: plugin.version.toString(),
                 description: plugin.longName,
                 purl: "pkg:jenkins/plugin/${plugin.shortName}@${plugin.version}"
             ]

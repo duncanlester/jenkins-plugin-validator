@@ -20,19 +20,11 @@ def generateReports() {
     
     writeFile file: 'plugin-validation-report.html', text: htmlReport
     
-    // Generate PDF Report
-    try {
-        generatePDFReport(pluginData, vulnData, outdatedData)
-    } catch (Exception e) {
-        echo "⚠️ PDF generation failed: ${e.message}"
-        echo "Continuing with other reports..."
-    }
-    
     // Generate JSON Report
     def jsonReport = groovy.json.JsonOutput.prettyPrint(
         groovy.json.JsonOutput.toJson([
-            timestamp: new Date().format('yyyy-MM-dd HH:mm:ss UTC'),
-            jenkins_version: Jenkins.instance.version,
+            timestamp: new Date().format('yyyy-MM-dd HH:mm:ss', TimeZone.getTimeZone('UTC')),
+            jenkins_version: Jenkins.instance.version.toString(),
             total_plugins: pluginData.size(),
             outdated_plugins: Integer.parseInt(env.OUTDATED_COUNT),
             vulnerabilities: Integer.parseInt(env.VULN_COUNT),
@@ -64,69 +56,6 @@ def generateReports() {
     ])
 }
 
-def generatePDFReport(pluginData, vulnData, outdatedData) {
-    echo "📄 Generating PDF report..."
-    
-    def jenkins = Jenkins.instance
-    
-    def pdfGenerator = new PDFGenerator()
-    
-    // Prepare data map for PDF
-    def data = [
-        jenkinsVersion: jenkins.version,
-        totalPlugins: pluginData.size(),
-        totalVulnerabilities: vulnData.size(),
-        criticalCount: Integer.parseInt(env.CRITICAL_COUNT),
-        highCount: Integer.parseInt(env.HIGH_COUNT),
-        mediumCount: Integer.parseInt(env.MEDIUM_COUNT),
-        outdatedCount: Integer.parseInt(env.OUTDATED_COUNT),
-        riskScore: Integer.parseInt(env.RISK_SCORE),
-        riskRating: env.RISK_RATING,
-        sbomGenerated: env.SBOM_GENERATED == 'true',
-        vulnerabilities: vulnData,
-        outdatedPlugins: outdatedData,
-        allPlugins: pluginData
-    ]
-    
-    // Generate PDF-ready HTML
-    def pdfHtml = pdfGenerator.generatePDFReadyHTML(data)
-    
-    // Write PDF HTML (can be converted to PDF using wkhtmltopdf or browser print)
-    writeFile file: 'plugin-validation-report-pdf.html', text: pdfHtml
-    
-    // Try to convert to PDF if wkhtmltopdf is available
-    try {
-        def result = sh(
-            script: 'which wkhtmltopdf',
-            returnStatus: true
-        )
-        
-        if (result == 0) {
-            echo "🎨 Converting HTML to PDF using wkhtmltopdf..."
-            sh """
-                wkhtmltopdf \
-                    --enable-local-file-access \
-                    --page-size A4 \
-                    --margin-top 15mm \
-                    --margin-bottom 15mm \
-                    --margin-left 15mm \
-                    --margin-right 15mm \
-                    --print-media-type \
-                    plugin-validation-report-pdf.html \
-                    plugin-validation-report.pdf
-            """
-            echo "✅ PDF report generated: plugin-validation-report.pdf"
-        } else {
-            echo "⚠️ wkhtmltopdf not found. PDF-ready HTML saved as: plugin-validation-report-pdf.html"
-            echo "💡 Install wkhtmltopdf for automatic PDF generation: apt-get install wkhtmltopdf"
-            echo "💡 Or use Chrome headless: google-chrome --headless --print-to-pdf=report.pdf report.html"
-        }
-    } catch (Exception e) {
-        echo "⚠️ Could not convert to PDF: ${e.message}"
-        echo "💡 PDF-ready HTML available: plugin-validation-report-pdf.html"
-    }
-}
-
 def sendSuccessNotification() {
     echo "✅ Plugin validation completed successfully!"
     
@@ -147,10 +76,8 @@ def sendSuccessNotification() {
                 
                 *Outdated Plugins:* ${env.OUTDATED_COUNT}
                 *SBOM:* ${env.SBOM_GENERATED == 'true' ? '✅ Generated' : 'Skipped'}
-                *PDF Report:* ✅ Generated
                 
                 <${env.BUILD_URL}Plugin_20Validation_20Report/|📊 View Full Report>
-                <${env.BUILD_URL}artifact/plugin-validation-report.pdf|📄 Download PDF>
             """.stripIndent()
         )
     } catch (Exception e) {
@@ -176,7 +103,6 @@ def sendSecurityAlert() {
                 *Risk Score:* ${env.RISK_SCORE}/100 (${env.RISK_RATING})
                 
                 <${env.BUILD_URL}Plugin_20Validation_20Report/|🔍 View Full Report>
-                <${env.BUILD_URL}artifact/plugin-validation-report.pdf|📄 Download PDF Report>
                 
                 ⚠️ Immediate action required!
             """.stripIndent()
@@ -186,8 +112,9 @@ def sendSecurityAlert() {
     }
 }
 
-private def generateHTMLReport(plugins, vulnerabilities, outdated, riskScore, riskRating) {
-    def timestamp = new Date().format('yyyy-MM-dd HH:mm:ss UTC')
+@NonCPS
+private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore, riskRating) {
+    def timestamp = new Date().format('yyyy-MM-dd HH:mm:ss', TimeZone.getTimeZone('UTC'))
     def jenkins = Jenkins.instance
     
     return """
@@ -212,26 +139,6 @@ private def generateHTMLReport(plugins, vulnerabilities, outdated, riskScore, ri
             margin-bottom: 30px;
         }
         .header h1 { font-size: 32px; margin-bottom: 10px; }
-        .download-section {
-            background: white;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .download-btn {
-            display: inline-block;
-            padding: 12px 24px;
-            background: #667eea;
-            color: white;
-            text-decoration: none;
-            border-radius: 6px;
-            margin-right: 10px;
-            font-weight: 600;
-        }
-        .download-btn:hover {
-            background: #5568d3;
-        }
         .stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -303,17 +210,9 @@ private def generateHTMLReport(plugins, vulnerabilities, outdated, riskScore, ri
     <div class="container">
         <div class="header">
             <h1>🔒 Jenkins Plugin Validation Report</h1>
-            <p>Generated: ${timestamp}</p>
+            <p>Generated: ${timestamp} UTC</p>
             <p>Jenkins Version: ${jenkins.version}</p>
             <p>Scan Source: <strong>Jenkins Update Center (Live)</strong></p>
-        </div>
-        
-        <div class="download-section">
-            <h3>📄 Download Reports</h3>
-            <a href="plugin-validation-report.pdf" download class="download-btn">📄 Download PDF Report</a>
-            <a href="plugin-validation-report.json" download class="download-btn">📊 Download JSON Data</a>
-            <a href="sbom-cyclonedx.json" download class="download-btn">📦 Download CycloneDX SBOM</a>
-            <a href="sbom-spdx.json" download class="download-btn">📦 Download SPDX SBOM</a>
         </div>
         
         <div class="stats">

@@ -1,6 +1,6 @@
 package org.jenkins.plugins.validator
 
-import java.security.MessageDigest
+import java.text.SimpleDateFormat
 
 class SPDXGenerator implements Serializable {
     private static final long serialVersionUID = 1L
@@ -12,8 +12,11 @@ class SPDXGenerator implements Serializable {
     }
     
     String generate(List plugins, List vulnerabilities) {
-        def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        def jenkinsVersion = Jenkins.instance.version.toString()  // Convert to String
+        def sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
+        sdf.setTimeZone(TimeZone.getTimeZone('UTC'))
+        def timestamp = sdf.format(new Date())
+        
+        def jenkinsVersion = Jenkins.instance.version.toString()
         
         def spdx = [
             spdxVersion: "SPDX-2.3",
@@ -53,7 +56,7 @@ class SPDXGenerator implements Serializable {
             [
                 SPDXID: "SPDXRef-Package-${plugin.shortName}",
                 name: plugin.shortName,
-                versionInfo: plugin.version.toString(),  // Ensure String
+                versionInfo: plugin.version.toString(),
                 downloadLocation: plugin.url ?: "https://updates.jenkins.io/download/plugins/${plugin.shortName}/${plugin.version}/${plugin.shortName}.hpi",
                 filesAnalyzed: false,
                 licenseConcluded: "NOASSERTION",
