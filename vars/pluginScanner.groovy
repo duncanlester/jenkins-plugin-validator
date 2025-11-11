@@ -23,7 +23,7 @@ def getPluginData() {
         [
             shortName: plugin.shortName,
             longName: plugin.longName,
-            version: plugin.version,
+            version: plugin.version.toString(),
             enabled: plugin.enabled,
             active: plugin.active,
             hasUpdate: plugin.hasUpdate(),
@@ -31,7 +31,7 @@ def getPluginData() {
             dependencies: plugin.dependencies.collect { dep ->
                 [
                     shortName: dep.shortName,
-                    version: dep.version,
+                    version: dep.version.toString(),
                     optional: dep.optional
                 ]
             }
@@ -40,116 +40,63 @@ def getPluginData() {
 }
 
 def fetchSecurityWarnings() {
-    echo "🔍 Fetching security warnings - DEEP DEBUG MODE..."
+    echo "🔍 Fetching security warnings from Jenkins..."
     
-    def allWarnings = getSecurityWarningsDebug()
+    def allWarnings = getSecurityWarnings()
     
     env.SECURITY_WARNINGS = groovy.json.JsonOutput.toJson(allWarnings)
-    echo "⚠️ Total warnings collected: ${allWarnings.size()}"
+    echo "⚠️ Found ${allWarnings.size()} security warnings"
 }
 
 @NonCPS
-def getSecurityWarningsDebug() {
+def getSecurityWarnings() {
     def jenkins = Jenkins.instance
     def pluginManager = jenkins.pluginManager
     def updateCenter = jenkins.updateCenter
     def allWarnings = []
     
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🔍 DEEP DEBUG: Update Center Analysis"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔍 Checking each installed plugin for security warnings..."
     
-    // Check each plugin for security warnings using PluginManager API
+    // Check each plugin directly using the PluginManager and UpdateCenter
     pluginManager.plugins.each { plugin ->
         try {
-            def wrapper = pluginManager.getPlugin(plugin.shortName)
+            // Get plugin info from Update Center
+            def pluginEntry = updateCenter.getPlugin(plugin.shortName)
             
-            // Check if plugin has security warnings
-            def hasWarnings = updateCenter.getPlugin(plugin.shortName)?.hasWarnings()
-            
-            if (hasWarnings) {
-                echo "⚠️ ${plugin.shortName} ${plugin.version} HAS WARNINGS"
-                
-                // Get the actual warnings for this plugin
-                def pluginInfo = updateCenter.getPlugin(plugin.shortName)
-                if (pluginInfo) {
-                    def warnings = pluginInfo.getWarnings()
+            if (pluginEntry != null) {
+                // Check if this plugin has warnings
+                if (pluginEntry.hasWarnings()) {
+                    echo "⚠️ ${plugin.shortName} ${plugin.version} HAS WARNINGS"
                     
-                    warnings.each { warning ->
-                        echo "   Type: ${warning.type}"
-                        echo "   ID: ${warning.id}"
-                        echo "   Message: ${warning.message?.take(100)}"
-                        
-                        allWarnings << [
-                            type: warning.type,
-                            id: warning.id,
-                            name: plugin.shortName,
-                            message: warning.message,
-                            url: warning.url,
-                            active: warning.isActive(),
-                            versions: warning.versions?.collect { v -> v.toString() }
-                        ]
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Continue silently
-        }
-    }
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    
-    // Also check Update Sites
-    echo "🔍 Checking Update Sites..."
-    updateCenter.sites.each { site ->
-        try {
-            echo "📍 Site: ${site.url}"
-            
-            site.updateDirectlyNow()
-            Thread.sleep(3000)
-            
-            def data = site.getData()
-            
-            if (data != null) {
-                def siteWarnings = data.getWarnings()
-                
-                if (siteWarnings != null && !siteWarnings.isEmpty()) {
-                    echo "   Found ${siteWarnings.size()} warnings in site data"
+                    // Get the warnings
+                    def warnings = pluginEntry.getWarnings()
                     
-                    siteWarnings.each { warning ->
-                        if (warning.type == 'plugin') {
-                            echo "   ⚠️ ${warning.name}: ${warning.id}"
+                    if (warnings != null && !warnings.isEmpty()) {
+                        warnings.each { warning ->
+                            echo "   ID: ${warning.id} - ${warning.message?.take(50)}"
                             
-                            allWarnings << [
-                                type: warning.type,
-                                id: warning.id,
-                                name: warning.name,
-                                message: warning.message,
-                                url: warning.url,
-                                versions: warning.versions?.collect { v -> 
-                                    [pattern: v.pattern ?: v.toString(), firstVersion: v.firstVersion]
-                                }
-                            ]
+                            // Add to collection - THIS IS THE FIX
+                            allWarnings.add([
+                                type: warning.type?.toString() ?: 'PLUGIN',
+                                id: warning.id?.toString() ?: 'UNKNOWN',
+                                name: plugin.shortName,
+                                message: warning.message?.toString() ?: 'Security vulnerability',
+                                url: warning.url?.toString() ?: '',
+                                active: true,
+                                versions: []
+                            ])
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            echo "⚠️ Error: ${e.message}"
+            // Skip plugins that can't be checked
         }
     }
     
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📊 Collected ${allWarnings.size()} warnings"
     
-    // Deduplicate
-    def uniqueWarnings = allWarnings.unique { [it.name, it.id] }
-    
-    echo "📊 Total unique warnings: ${uniqueWarnings.size()}"
-    uniqueWarnings.each { w ->
-        echo "   • ${w.name} - ${w.id}"
-    }
-    
-    return uniqueWarnings
+    return allWarnings
 }
 
 def checkForUpdates() {
@@ -174,15 +121,14 @@ def scanVulnerabilities() {
     def securityWarnings = readJSON text: env.SECURITY_WARNINGS
     def vulnerabilities = []
     
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "🔍 MATCHING: ${pluginData.size()} plugins vs ${securityWarnings.size()} warnings"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📋 Checking ${pluginData.size()} plugins against ${securityWarnings.size()} security warnings"
     
+    // Match installed plugins against security warnings
     pluginData.each { plugin ->
         def matchingWarnings = securityWarnings.findAll { w -> w.name == plugin.shortName }
         
         if (matchingWarnings.size() > 0) {
-            echo "✅ ${plugin.shortName} ${plugin.version} - Found ${matchingWarnings.size()} warning(s)"
+            echo "⚠️ Found ${matchingWarnings.size()} warning(s) for ${plugin.shortName} ${plugin.version}"
             
             matchingWarnings.each { warning ->
                 def cveMatch = (warning.id =~ /CVE-\d{4}-\d+/)
@@ -202,7 +148,7 @@ def scanVulnerabilities() {
                     installed: plugin.version.toString()
                 ]
                 
-                echo "   ❌ ${cve} - ${severity}"
+                echo "   ❌ ${cve} (${severity})"
             }
         }
     }
@@ -211,8 +157,6 @@ def scanVulnerabilities() {
     
     env.VULNERABILITIES = groovy.json.JsonOutput.toJson(vulnerabilities)
     env.VULN_COUNT = vulnerabilities.size().toString()
-    
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     if (vulnerabilities.size() > 0) {
         currentBuild.result = 'UNSTABLE'
@@ -223,12 +167,6 @@ def scanVulnerabilities() {
         }
     } else {
         echo "✅ No vulnerabilities detected"
-        echo ""
-        echo "💡 If Jenkins UI shows a vulnerability but this doesn't:"
-        echo "   1. Check the console output above for 'HAS WARNINGS'"
-        echo "   2. The plugin name might be different"
-        echo "   3. Update Center might need manual refresh"
-        echo "   4. Go to: Manage Jenkins → Manage Plugins → Advanced → Check now"
     }
 }
 
