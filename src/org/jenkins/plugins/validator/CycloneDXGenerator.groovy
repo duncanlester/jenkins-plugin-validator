@@ -13,7 +13,7 @@ class CycloneDXGenerator implements Serializable {
     
     String generate(List plugins, List vulnerabilities) {
         def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        def jenkinsVersion = Jenkins.instance.version
+        def jenkinsVersion = Jenkins.instance.version.toString()  // Convert to String
         
         def sbom = [
             bomFormat: "CycloneDX",
@@ -57,7 +57,7 @@ class CycloneDXGenerator implements Serializable {
                 type: "library",
                 "bom-ref": "pkg:jenkins/plugin/${plugin.shortName}@${plugin.version}",
                 name: plugin.shortName,
-                version: plugin.version,
+                version: plugin.version.toString(),  // Ensure String
                 description: plugin.longName,
                 purl: "pkg:jenkins/plugin/${plugin.shortName}@${plugin.version}"
             ]
@@ -68,6 +68,17 @@ class CycloneDXGenerator implements Serializable {
                     [name: "jenkins:active", value: plugin.active.toString()],
                     [name: "jenkins:hasUpdate", value: plugin.hasUpdate.toString()],
                     [name: "sbom:enhanced", value: "true"]
+                ]
+                
+                component.externalReferences = [
+                    [
+                        type: "website",
+                        url: "https://plugins.jenkins.io/${plugin.shortName}"
+                    ],
+                    [
+                        type: "vcs",
+                        url: "https://github.com/jenkinsci/${plugin.shortName}-plugin"
+                    ]
                 ]
             } else {
                 component.properties = [
@@ -105,13 +116,13 @@ class CycloneDXGenerator implements Serializable {
                         method: "CVSSv3"
                     ]
                 ],
-                description: vuln.description,
+                description: vuln.description ?: "Security vulnerability in ${vuln.plugin}",
                 affects: [
                     [
                         ref: "pkg:jenkins/plugin/${vuln.plugin}@${vuln.version}",
                         versions: [
                             [
-                                version: vuln.version,
+                                version: vuln.version.toString(),
                                 status: "affected"
                             ]
                         ]

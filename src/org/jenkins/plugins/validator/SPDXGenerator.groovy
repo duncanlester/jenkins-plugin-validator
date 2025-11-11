@@ -1,9 +1,9 @@
 package org.jenkins.plugins.validator
 
 import java.security.MessageDigest
-import jenkins.model.Jenkins
 
 class SPDXGenerator implements Serializable {
+    private static final long serialVersionUID = 1L
     
     private boolean enhanced = true
     
@@ -13,9 +13,9 @@ class SPDXGenerator implements Serializable {
     
     String generate(List plugins, List vulnerabilities) {
         def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'")
-        def jenkins = Jenkins.instance
+        def jenkinsVersion = Jenkins.instance.version.toString()  // Convert to String
         
-        return groovy.json.JsonOutput.toJson([
+        def spdx = [
             spdxVersion: "SPDX-2.3",
             dataLicense: "CC0-1.0",
             SPDXID: "SPDXRef-DOCUMENT",
@@ -29,17 +29,19 @@ class SPDXGenerator implements Serializable {
                 ],
                 licenseListVersion: "3.21"
             ],
-            packages: generatePackages(jenkins, plugins),
+            packages: generatePackages(jenkinsVersion, plugins),
             relationships: generateRelationships(plugins)
-        ])
+        ]
+        
+        return groovy.json.JsonOutput.toJson(spdx)
     }
     
-    private def generatePackages(jenkins, List plugins) {
+    private List generatePackages(String jenkinsVersion, List plugins) {
         def packages = [
             [
                 SPDXID: "SPDXRef-Jenkins",
                 name: "Jenkins",
-                versionInfo: jenkins.version,
+                versionInfo: jenkinsVersion,
                 downloadLocation: "https://www.jenkins.io/",
                 filesAnalyzed: false,
                 licenseConcluded: "MIT",
@@ -48,12 +50,12 @@ class SPDXGenerator implements Serializable {
         ]
         
         packages.addAll(plugins.collect { plugin ->
-            def pkg = [
+            [
                 SPDXID: "SPDXRef-Package-${plugin.shortName}",
                 name: plugin.shortName,
-                versionInfo: plugin.version,
+                versionInfo: plugin.version.toString(),  // Ensure String
                 downloadLocation: plugin.url ?: "https://updates.jenkins.io/download/plugins/${plugin.shortName}/${plugin.version}/${plugin.shortName}.hpi",
-                filesAnalyzed: enhanced,
+                filesAnalyzed: false,
                 licenseConcluded: "NOASSERTION",
                 licenseDeclared: "NOASSERTION",
                 copyrightText: "NOASSERTION",
@@ -65,79 +67,12 @@ class SPDXGenerator implements Serializable {
                     ]
                 ]
             ]
-            
-            // Add enhanced checksums if enabled
-            if (enhanced) {
-                def checksums = getPluginChecksums(plugin, jenkins)
-                if (checksums) {
-                    pkg.checksums = checksums
-                }
-                
-                // Add source info
-                pkg.sourceInfo = "https://github.com/jenkinsci/${plugin.shortName}-plugin"
-                
-                // Add homepage
-                pkg.homepage = "https://plugins.jenkins.io/${plugin.shortName}"
-            }
-            
-            return pkg
         })
         
         return packages
     }
     
-    private def getPluginChecksums(plugin, jenkins) {
-        try {
-            def pluginDir = jenkins.pluginManager.rootDir
-            def pluginFile = new File(pluginDir, "${plugin.shortName}.jpi")
-            
-            if (!pluginFile.exists()) {
-                pluginFile = new File(pluginDir, "${plugin.shortName}.hpi")
-            }
-            
-            if (pluginFile.exists() && pluginFile.canRead()) {
-                return [
-                    [
-                        algorithm: "SHA256",
-                        checksumValue: calculateSHA256(pluginFile)
-                    ],
-                    [
-                        algorithm: "SHA1",
-                        checksumValue: calculateSHA1(pluginFile)
-                    ]
-                ]
-            }
-        } catch (Exception e) {
-            // Silently fail
-        }
-        return null
-    }
-    
-    private String calculateSHA256(File file) {
-        def digest = MessageDigest.getInstance("SHA-256")
-        file.withInputStream { is ->
-            byte[] buffer = new byte[8192]
-            int read
-            while ((read = is.read(buffer)) != -1) {
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().encodeHex().toString()
-    }
-    
-    private String calculateSHA1(File file) {
-        def digest = MessageDigest.getInstance("SHA-1")
-        file.withInputStream { is ->
-            byte[] buffer = new byte[8192]
-            int read
-            while ((read = is.read(buffer)) != -1) {
-                digest.update(buffer, 0, read)
-            }
-        }
-        return digest.digest().encodeHex().toString()
-    }
-    
-    private def generateRelationships(List plugins) {
+    private List generateRelationships(List plugins) {
         def relationships = [
             [
                 spdxElementId: "SPDXRef-DOCUMENT",
