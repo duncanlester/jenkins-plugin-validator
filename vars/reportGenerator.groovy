@@ -83,46 +83,6 @@ def generateReports() {
         
         .header-meta strong { font-weight: 600; opacity: 1; }
         
-        .stats { 
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 24px;
-            margin-bottom: 40px;
-        }
-        
-        .stat-card { 
-            background: var(--card-bg);
-            padding: 32px;
-            border-radius: 12px;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
-        }
-        
-        .stat-card h3 { 
-            color: var(--text-muted);
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-        }
-        
-        .stat-card .value { 
-            font-size: 48px;
-            font-weight: 700;
-            color: var(--primary);
-            line-height: 1;
-        }
-        
-        .color-success { color: var(--success); }
-        .color-warning { color: var(--warning); }
-        .color-danger { color: var(--danger); }
-        
-        .value-suffix { 
-            font-size: 24px;
-            color: var(--text-muted);
-        }
-        
         .section { 
             background: var(--card-bg);
             padding: 36px;
@@ -169,6 +129,10 @@ def generateReports() {
             font-weight: 700;
             color: var(--text);
         }
+        
+        .color-success { color: var(--success); }
+        .color-warning { color: var(--warning); }
+        .color-danger { color: var(--danger); }
         
         .issue-link {
             display: inline-block;
@@ -264,10 +228,6 @@ def generateReports() {
         }
         
         strong { font-weight: 600; }
-        
-        .vuln-critical { background: #ffebee; border-left-color: var(--critical); }
-        .vuln-high { background: #fff3e0; border-left-color: var(--danger); }
-        .vuln-medium { background: #fff9e6; border-left-color: var(--warning); }
     </style>
 </head>
 <body>
@@ -278,25 +238,6 @@ def generateReports() {
                 <div><strong>Generated:</strong> ${timestamp} UTC</div>
                 <div><strong>Jenkins:</strong> ${jenkinsVersion}</div>
                 <div><strong>User:</strong> ${currentUser}</div>
-            </div>
-        </div>
-        
-        <div class="stats">
-            <div class="stat-card">
-                <h3>Total Plugins</h3>
-                <div class="value">${pluginCount}</div>
-            </div>
-            <div class="stat-card">
-                <h3>Vulnerabilities</h3>
-                <div class="value ${vulnColorClass}">${vulnCount}</div>
-            </div>
-            <div class="stat-card">
-                <h3>Outdated</h3>
-                <div class="value color-warning">${outdatedCount}</div>
-            </div>
-            <div class="stat-card">
-                <h3>Risk Score</h3>
-                <div class="value ${riskColorClass}">${riskScore}<span class="value-suffix">/100</span></div>
             </div>
         </div>
 """
