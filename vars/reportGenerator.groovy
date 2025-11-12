@@ -53,7 +53,7 @@ def generateReports() {
     // Summary section
     html << """
         <div class="section">
-            <h2>📊 Executive Summary</h2>
+            <h2>📊 Jenkins Plugin Vulnerability Summary</h2>
             <div class="summary-grid">
                 <div class="summary-item">
                     <h4>Total Plugins Installed</h4>
