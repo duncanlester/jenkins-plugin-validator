@@ -42,7 +42,12 @@ def call() {
             keepAll: true,
             reportDir: '.',
             reportFiles: 'plugin-validation-report.html',
-            reportName: 'Plugin Validation Report'
+            reportName: 'Plugin Validation Report',
+            reportTitles: 'Jenkins Plugin Validation Report',
+            allowScripting: false,
+            escapeUnderscores: true,
+            includes: '**/*',
+            useWrapperFileDirectly: true
         ])
     } catch (Exception e) {
         echo "⚠️ HTML Publisher not available: ${e.message}"
@@ -115,9 +120,9 @@ def buildReportHTML(plugins, vulns, outdated, pluginCount, vulnCount, outdatedCo
                     <tr>
                         <th class="col-18">Plugin</th>
                         <th class="col-12">Version</th>
-                        <th class="col-12">CVE</th>
+                        <th class="col-20">CVE / Security Advisory</th>
                         <th class="col-10">Severity</th>
-                        <th class="col-38">Description</th>
+                        <th class="col-30">Description</th>
                         <th class="col-10">Reference</th>
                     </tr>
                 </thead>
@@ -125,15 +130,22 @@ def buildReportHTML(plugins, vulns, outdated, pluginCount, vulnCount, outdatedCo
 """
         vulns.each { v ->
             def cveId = escapeHtml(v.cve)
-            def cveUrl = v.url ?: "https://nvd.nist.gov/vuln/detail/${cveId}"
+            def cveUrl = escapeHtml(v.url ?: "https://www.jenkins.io/security/advisories/")
+            
+            // Split multiple CVEs for display
+            def cveLinks = cveId.split(',').collect { cve ->
+                def trimmedCve = cve.trim()
+                "<a href=\"${cveUrl}\" target=\"_blank\" rel=\"noopener noreferrer\">${trimmedCve}</a>"
+            }.join(', ')
+            
             html << """
                     <tr>
                         <td><strong>${escapeHtml(v.plugin)}</strong></td>
                         <td>${escapeHtml(v.version)}</td>
-                        <td><code><a href="${cveUrl}" class="cve-link" target="_blank" rel="noopener">${cveId}</a></code></td>
+                        <td><code>${cveLinks}</code></td>
                         <td><span class="badge badge-${v.severity.toLowerCase()}">${escapeHtml(v.severity)}</span></td>
                         <td>${escapeHtml(v.description)}</td>
-                        <td><a href="${cveUrl}" class="issue-link issue-link-small" target="_blank" rel="noopener">View CVE</a></td>
+                        <td><a href="${cveUrl}" class="issue-link issue-link-small" target="_blank" rel="noopener noreferrer">View Details</a></td>
                     </tr>
 """
         }
