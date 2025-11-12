@@ -17,7 +17,7 @@ def call() {
     def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
     def jenkinsVersion = Jenkins.instance.version.toString()
     
-    echo "Building SBOM with ${plugins.size()} components and ${vulns.size()} vulnerabilities"
+    echo "Building CycloneDX SBOM with ${plugins.size()} components and ${vulns.size()} vulnerabilities"
     
     def sbom = buildSBOM(plugins, vulns, timestamp, jenkinsVersion)
     
@@ -26,16 +26,18 @@ def call() {
     def sbomJson = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(sbom))
     writeFile file: 'sbom.json', text: sbomJson
     
-    echo "✅ CycloneDX SBOM: ${sbom.components.size()} components, ${sbom.vulnerabilities.size()} vulnerabilities"
+    echo "✅ CycloneDX SBOM (sbom.json): ${sbom.components.size()} components, ${sbom.vulnerabilities.size()} vulnerabilities"
     
     def spdxContent = generateSPDX(plugins, jenkinsVersion, timestamp)
-    echo "✅ SPDX SBOM: ${plugins.size()} packages"
+    echo "✅ SPDX SBOM (sbom.spdx): ${plugins.size()} packages (no vulnerability data)"
     
     generateSBOMReport(sbom, spdxContent, plugins.size(), vulns)
     
     archiveArtifacts artifacts: 'sbom.json,sbom.spdx,sbom-report.html,sbom-style.css'
     
-    echo "✅ SBOM generated: ${plugins.size()} components, ${vulns.size()} vulnerabilities"
+    echo "✅ SBOM files generated:"
+    echo "   - sbom.json (CycloneDX 1.5 - includes vulnerabilities)"
+    echo "   - sbom.spdx (SPDX 2.3 - for license compliance)"
 }
 
 @NonCPS
@@ -94,7 +96,6 @@ def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
         sbom.components << component
     }
     
-    // Add vulnerabilities to SBOM
     vulns.each { v ->
         def vuln = [:]
         vuln.id = v.cve ?: 'UNKNOWN'
@@ -207,7 +208,7 @@ def buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, v
     html << '        <div class="header">\n'
     html << '            <h1>📦 Software Bill of Materials (SBOM)</h1>\n'
     html << '            <div class="header-meta">\n'
-    html << "                <div><strong>Format:</strong> CycloneDX 1.5 / SPDX 2.3</div>\n"
+    html << "                <div><strong>Primary Format:</strong> CycloneDX 1.5 (with vulnerabilities)</div>\n"
     html << "                <div><strong>Generated:</strong> ${sbom.metadata.timestamp}</div>\n"
     html << "                <div><strong>Components:</strong> ${componentCount}</div>\n"
     html << '            </div>\n'
@@ -225,7 +226,7 @@ def buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, v
     html << "                    <div class=\"summary-value ${vulnColorClass}\">${vulnCount}</div>\n"
     html << '                </div>\n'
     html << '                <div class="summary-item">\n'
-    html << '                    <h4>SBOM Format</h4>\n'
+    html << '                    <h4>Primary Format</h4>\n'
     html << '                    <div class="summary-value">CycloneDX 1.5</div>\n'
     html << '                </div>\n'
     html << '                <div class="summary-item">\n'
@@ -235,17 +236,61 @@ def buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, v
     html << '            </div>\n'
     html << '            \n'
     html << '            <div class="links-group">\n'
-    html << '                <a href="sbom.json" class="issue-link" download>📥 Download CycloneDX JSON</a>\n'
-    html << '                <a href="sbom.spdx" class="issue-link" download>📥 Download SPDX</a>\n'
-    html << '                <a href="plugins.json" class="issue-link" download>📥 Download Raw Data</a>\n'
+    html << '                <a href="sbom.json" class="issue-link" download>📥 Download CycloneDX (JSON - includes vulnerabilities)</a>\n'
+    html << '                <a href="sbom.spdx" class="issue-link" download>📥 Download SPDX (Tag-value - for licensing)</a>\n'
     html << '            </div>\n'
+    html << '        </div>\n'
+    html << '        \n'
+    html << '        <div class="section">\n'
+    html << '            <h2>🔍 What is CycloneDX vs SPDX?</h2>\n'
+    html << '            <table>\n'
+    html << '                <thead>\n'
+    html << '                    <tr>\n'
+    html << '                        <th>Feature</th>\n'
+    html << '                        <th>CycloneDX 1.5</th>\n'
+    html << '                        <th>SPDX 2.3</th>\n'
+    html << '                    </tr>\n'
+    html << '                </thead>\n'
+    html << '                <tbody>\n'
+    html << '                    <tr>\n'
+    html << '                        <td><strong>Format</strong></td>\n'
+    html << '                        <td>JSON or XML</td>\n'
+    html << '                        <td>Tag-value, JSON, YAML, RDF</td>\n'
+    html << '                    </tr>\n'
+    html << '                    <tr>\n'
+    html << '                        <td><strong>Standard Body</strong></td>\n'
+    html << '                        <td>OWASP</td>\n'
+    html << '                        <td>Linux Foundation (ISO/IEC 5962:2021)</td>\n'
+    html << '                    </tr>\n'
+    html << '                    <tr>\n'
+    html << '                        <td><strong>Vulnerability Support</strong></td>\n'
+    html << '                        <td><span class="badge badge-high">✅ Native & Comprehensive</span></td>\n'
+    html << '                        <td><span class="badge badge-medium">⚠️  Limited (v2.3)</span></td>\n'
+    html << '                    </tr>\n'
+    html << '                    <tr>\n'
+    html << '                        <td><strong>Primary Focus</strong></td>\n'
+    html << '                        <td>Security & Vulnerability Tracking</td>\n'
+    html << '                        <td>License Compliance & Legal</td>\n'
+    html << '                    </tr>\n'
+    html << '                    <tr>\n'
+    html << '                        <td><strong>Best Used For</strong></td>\n'
+    html << '                        <td>DevSecOps, SCA tools, CVE tracking</td>\n'
+    html << '                        <td>License audits, M&A, compliance</td>\n'
+    html << '                    </tr>\n'
+    html << '                    <tr>\n'
+    html << '                        <td><strong>Your File</strong></td>\n'
+    html << '                        <td><code>sbom.json</code></td>\n'
+    html << '                        <td><code>sbom.spdx</code></td>\n'
+    html << '                    </tr>\n'
+    html << '                </tbody>\n'
+    html << '            </table>\n'
     html << '        </div>\n'
     html << '        \n'
     
     if (vulnCount > 0) {
         html << '        <div class="section">\n'
         html << "            <h2>🚨 Vulnerabilities in CycloneDX SBOM (${vulnCount})</h2>\n"
-        html << '            <p class="sbom-intro">The following vulnerabilities are included in the sbom.json file:</p>\n'
+        html << '            <p class="sbom-intro"><strong>Important:</strong> Vulnerability data is included in <code>sbom.json</code> (CycloneDX format) but NOT in <code>sbom.spdx</code> (SPDX 2.3 has limited support).</p>\n'
         html << '            <table>\n'
         html << '                <thead>\n'
         html << '                    <tr>\n'
@@ -275,31 +320,15 @@ def buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, v
         
         html << '                </tbody>\n'
         html << '            </table>\n'
-        html << '            <p class="sbom-intro" style="margin-top: 16px;"><strong>Note:</strong> These vulnerabilities are included in the <code>sbom.json</code> file under the <code>vulnerabilities</code> array, mapped to their corresponding components via Package URL (PURL).</p>\n'
+        html << '            <p class="sbom-intro" style="margin-top: 16px;"><strong>Location in sbom.json:</strong> Open the CycloneDX JSON file and scroll to the bottom to find the <code>"vulnerabilities": []</code> array.</p>\n'
         html << '        </div>\n'
     }
     
-    html << '        <div class="section">\n'
-    html << '            <h2>📋 Format Comparison: CycloneDX vs SPDX</h2>\n'
-    html << '            <div class="summary-grid">\n'
-    html << '                <div class="summary-item">\n'
-    html << '                    <h4>CycloneDX 1.5</h4>\n'
-    html << '                    <div class="summary-value color-success">✅ Vulnerabilities</div>\n'
-    html << '                    <p style="font-size: 12px; margin-top: 8px;">Security-focused SBOM format with native CVE support</p>\n'
-    html << '                </div>\n'
-    html << '                <div class="summary-item">\n'
-    html << '                    <h4>SPDX 2.3</h4>\n'
-    html << '                    <div class="summary-value color-warning">⚠️  Limited</div>\n'
-    html << '                    <p style="font-size: 12px; margin-top: 8px;">ISO standard focused on licensing and compliance</p>\n'
-    html << '                </div>\n'
-    html << '            </div>\n'
-    html << '        </div>\n'
-    html << '        \n'
-    html << '        <div class="section">\n'
-    html << '            <h2>📋 SPDX Document (ISO/IEC 5962:2021)</h2>\n'
-    html << '            <p class="sbom-intro">Software Package Data eXchange (SPDX) standard for SBOM. Note: SPDX 2.3 has limited vulnerability support.</p>\n'
+    html << '        <details class="section">\n'
+    html << '            <summary style="cursor: pointer; font-size: 18px; font-weight: 600; margin-bottom: 16px;">📋 View SPDX Document (ISO/IEC 5962:2021)</summary>\n'
+    html << '            <p class="sbom-intro"><strong>Note:</strong> SPDX is a different format from CycloneDX. This file does NOT contain vulnerability data.</p>\n'
     html << '            <pre class="spdx-viewer"><code>' + spdxHtml + '</code></pre>\n'
-    html << '        </div>\n'
+    html << '        </details>\n'
     html << '    </div>\n'
     html << '</body>\n'
     html << '</html>\n'
