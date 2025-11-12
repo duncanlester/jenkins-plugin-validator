@@ -32,47 +32,30 @@ def getPluginData() {
         m.dependencies = p.dependencies.collect { d -> [shortName: d.shortName, version: d.version.toString(), optional: d.optional] }
         m.dependencyCount = m.dependencies.size()
         
-        // Manifest
         try {
-            def a = p.manifest?.mainAttributes
-            if (a) {
-                m.buildDate = a.getValue('Build-Date')
-                m.builtBy = a.getValue('Built-By')
-                m.jenkinsVersion = a.getValue('Jenkins-Version')
-                m.pluginDevelopers = a.getValue('Plugin-Developers')
+            def attrs = p.manifest?.mainAttributes
+            if (attrs) {
+                m.buildDate = attrs.getValue('Build-Date')
+                m.builtBy = attrs.getValue('Built-By')
+                m.jenkinsVersion = attrs.getValue('Jenkins-Version')
+                m.pluginDevelopers = attrs.getValue('Plugin-Developers')
+                m.url_manifest = attrs.getValue('Url')
             }
         } catch (e) {}
         
-        // UpdateCenter
         try {
             def pi = updateCenter.getPlugin(p.shortName)
             if (pi) {
-                try { m.scm = pi.scm } catch (e) {}
-                try { m.wiki = pi.wiki } catch (e) {}
-                try { m.issueTrackerUrl = pi.issueTrackerUrl } catch (e) {}
-                try { m.excerpt = pi.excerpt } catch (e) {}
-                try { m.requiredCore = pi.requiredCore } catch (e) {}
-                
-                try {
-                    def devs = pi.getDevelopers()
-                    if (devs) {
-                        m.developers = devs.collect { [name: it.name ?: 'Unknown', email: it.email, id: it.developerId] }
-                        m.developerNames = m.developers.collect { it.name }.join(', ')
-                    }
-                } catch (e) {}
-                
-                try {
-                    def cats = pi.getCategories()
-                    if (cats) {
-                        m.categories = cats.collect { it.toString() }
-                        m.categoryNames = m.categories.join(', ')
-                    }
-                } catch (e) {}
+                try { m.scm = pi.scm?.toString() } catch (e) {}
+                try { m.wiki = pi.wiki?.toString() } catch (e) {}
+                try { m.issueTrackerUrl = pi.issueTrackerUrl?.toString() } catch (e) {}
+                try { m.excerpt = pi.excerpt?.toString() } catch (e) {}
+                try { m.requiredCore = pi.requiredCore?.toString() } catch (e) {}
+                try { m.releaseTimestamp = pi.releaseTimestamp?.toString() } catch (e) {}
             }
         } catch (e) {}
         
-        if (!m.developerNames) m.developerNames = 'Unknown'
-        if (!m.categoryNames) m.categoryNames = ''
+        m.developerNames = m.pluginDevelopers ?: 'Unknown'
         
         return m
     }
