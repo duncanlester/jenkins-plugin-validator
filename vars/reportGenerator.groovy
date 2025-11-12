@@ -9,6 +9,8 @@ def generateReports() {
     def vulnData = readJSON text: env.VULNERABILITIES
     def outdatedData = readJSON text: env.OUTDATED_PLUGINS
     
+    echo "📊 Report will include ${pluginData.size()} plugins"
+    
     // Generate HTML Report
     def htmlReport = generateHTMLReport(
         pluginData,
@@ -150,9 +152,9 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
     def timestamp = new Date().format('yyyy-MM-dd HH:mm:ss', TimeZone.getTimeZone('UTC'))
     def jenkins = Jenkins.instance
     
-    def pluginsJson = groovy.json.JsonOutput.toJson(plugins).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'")
-    def vulnJson = groovy.json.JsonOutput.toJson(vulnerabilities).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'")
-    def outdatedJson = groovy.json.JsonOutput.toJson(outdated).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'")
+    def pluginsJson = groovy.json.JsonOutput.toJson(plugins).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'").replaceAll('"', '&quot;')
+    def vulnJson = groovy.json.JsonOutput.toJson(vulnerabilities).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'").replaceAll('"', '&quot;')
+    def outdatedJson = groovy.json.JsonOutput.toJson(outdated).replaceAll("\\\\", "\\\\\\\\").replaceAll("'", "\\\\'").replaceAll('"', '&quot;')
     
     return """<!DOCTYPE html>
 <html lang="en">
@@ -168,7 +170,7 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
             padding: 20px;
             line-height: 1.6;
         }
-        .container { max-width: 1600px; margin: 0 auto; }
+        .container { max-width: 1800px; margin: 0 auto; }
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -214,25 +216,26 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
         }
         .section h2 { margin-bottom: 20px; color: #333; font-size: 24px; font-weight: 700; }
         .table-container { overflow-x: auto; margin-top: 20px; }
-        table { width: 100%; border-collapse: collapse; font-size: 14px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
         thead { position: sticky; top: 0; z-index: 10; }
         th {
             background: #f8f9fa;
-            padding: 14px 12px;
+            padding: 12px 10px;
             text-align: left;
             font-weight: 600;
             border-bottom: 2px solid #dee2e6;
             color: #495057;
-            font-size: 13px;
+            font-size: 12px;
             text-transform: uppercase;
+            white-space: nowrap;
         }
-        td { padding: 14px 12px; border-bottom: 1px solid #e9ecef; color: #495057; }
+        td { padding: 12px 10px; border-bottom: 1px solid #e9ecef; color: #495057; }
         tr:hover { background: #f8f9fa; }
         .badge {
             display: inline-block;
-            padding: 5px 14px;
-            border-radius: 14px;
-            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
             font-weight: 600;
             text-transform: uppercase;
         }
@@ -276,7 +279,7 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
             padding: 2px 6px;
             border-radius: 4px;
             font-family: 'Courier New', monospace;
-            font-size: 12px;
+            font-size: 11px;
         }
     </style>
 </head>
@@ -287,6 +290,7 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
             <p><strong>Generated:</strong> ${timestamp} UTC</p>
             <p><strong>Jenkins Version:</strong> ${jenkins.version}</p>
             <p><strong>Scan Source:</strong> Jenkins Update Center (Live)</p>
+            <p><strong>Report By:</strong> duncanlesternone</p>
         </div>
         
         <div class="stats">
@@ -311,7 +315,7 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
         
         ${vulnerabilities.size() > 0 ? """
         <div class="section">
-            <h2>🚨 Vulnerable Plugins</h2>
+            <h2>🚨 Vulnerable Plugins (${vulnerabilities.size()})</h2>
             <table>
                 <thead>
                     <tr>
@@ -349,6 +353,9 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
                             <th>Plugin Name</th>
                             <th>Short Name</th>
                             <th>Version</th>
+                            <th>URL</th>
+                            <th>Developers</th>
+                            <th>Release Date</th>
                             <th>Status</th>
                         </tr>
                     </thead>
@@ -368,7 +375,7 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
         """ : ''}
         
         <div class="section">
-            <h2>📋 All Plugins (${plugins.size()})</h2>
+            <h2>📋 All Installed Plugins (${plugins.size()})</h2>
             <div class="table-container">
                 <table>
                     <thead>
@@ -378,6 +385,14 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
                             <th>Version</th>
                             <th>Status</th>
                             <th>Active</th>
+                            <th>URL</th>
+                            <th>SCM</th>
+                            <th>Issues</th>
+                            <th>Wiki</th>
+                            <th>Developers</th>
+                            <th>Release Date</th>
+                            <th>Build Date</th>
+                            <th>Jenkins Ver</th>
                             <th>Dependencies</th>
                         </tr>
                     </thead>
@@ -397,8 +412,10 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
     </div>
 
     <script>
-        const allPlugins = JSON.parse('${pluginsJson}');
-        const outdatedPlugins = JSON.parse('${outdatedJson}');
+        const allPlugins = JSON.parse(decodeURIComponent("${java.net.URLEncoder.encode(pluginsJson, 'UTF-8')}"));
+        const outdatedPlugins = JSON.parse(decodeURIComponent("${java.net.URLEncoder.encode(outdatedJson, 'UTF-8')}"));
+        
+        console.log("Total plugins loaded:", allPlugins.length);
         
         let pluginPage = 1;
         const pluginPerPage = 50;
@@ -416,16 +433,29 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
             const end = start + pluginPerPage;
             const page = allPlugins.slice(start, end);
             
-            document.getElementById('pluginBody').innerHTML = page.map(p => 
-                "<tr>" +
+            console.log("Rendering page", pluginPage, "plugins:", page.length);
+            
+            document.getElementById('pluginBody').innerHTML = page.map(p => {
+                const devs = p.developers && p.developers.length > 0 ? 
+                    p.developers.map(d => d.name).join(', ') : 'Unknown';
+                
+                return "<tr>" +
                 "<td><strong>" + esc(p.longName) + "</strong></td>" +
                 "<td><code>" + esc(p.shortName) + "</code></td>" +
                 "<td>" + esc(p.version) + "</td>" +
                 "<td><span class='badge badge-" + (p.enabled ? "enabled'>ENABLED" : "disabled'>DISABLED") + "</span></td>" +
                 "<td>" + (p.active ? "✅" : "❌") + "</td>" +
+                "<td>" + (p.url ? "<a href='" + p.url + "' target='_blank'>↗</a>" : "-") + "</td>" +
+                "<td>" + (p.scm ? "<a href='" + p.scm + "' target='_blank'>↗</a>" : "-") + "</td>" +
+                "<td>" + (p.issueTrackerUrl ? "<a href='" + p.issueTrackerUrl + "' target='_blank'>↗</a>" : "-") + "</td>" +
+                "<td>" + (p.wiki ? "<a href='" + p.wiki + "' target='_blank'>↗</a>" : "-") + "</td>" +
+                "<td>" + esc(devs) + "</td>" +
+                "<td>" + (p.releaseTimestamp ? new Date(parseInt(p.releaseTimestamp)).toLocaleDateString() : (p.buildDate || "-")) + "</td>" +
+                "<td>" + esc(p.buildDate || "-") + "</td>" +
+                "<td>" + esc(p.jenkinsVersion || p.requiredCoreVersion || "-") + "</td>" +
                 "<td>" + (p.dependencies ? p.dependencies.length : 0) + "</td>" +
-                "</tr>"
-            ).join('');
+                "</tr>";
+            }).join('');
             
             document.getElementById('pluginInfo').textContent = 
                 "Showing " + (start + 1) + "-" + Math.min(end, allPlugins.length) + 
@@ -433,6 +463,7 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
         }
         
         function renderOutdated() {
+            if (outdatedPlugins.length === 0) return;
             if (outdatedPage < 1) outdatedPage = 1;
             if (outdatedPage > outdatedTotalPages) outdatedPage = outdatedTotalPages;
             
@@ -440,14 +471,20 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
             const end = start + outdatedPerPage;
             const page = outdatedPlugins.slice(start, end);
             
-            document.getElementById('outdatedBody').innerHTML = page.map(p => 
-                "<tr>" +
+            document.getElementById('outdatedBody').innerHTML = page.map(p => {
+                const devs = p.developers && p.developers.length > 0 ? 
+                    p.developers.map(d => d.name).join(', ') : 'Unknown';
+                
+                return "<tr>" +
                 "<td><strong>" + esc(p.longName) + "</strong></td>" +
                 "<td><code>" + esc(p.shortName) + "</code></td>" +
                 "<td>" + esc(p.version) + "</td>" +
+                "<td>" + (p.url ? "<a href='" + p.url + "' target='_blank'>↗</a>" : "-") + "</td>" +
+                "<td>" + esc(devs) + "</td>" +
+                "<td>" + (p.releaseTimestamp ? new Date(parseInt(p.releaseTimestamp)).toLocaleDateString() : (p.buildDate || "-")) + "</td>" +
                 "<td><span class='badge badge-update'>UPDATE AVAILABLE</span></td>" +
-                "</tr>"
-            ).join('');
+                "</tr>";
+            }).join('');
             
             document.getElementById('outdatedInfo').textContent = 
                 "Showing " + (start + 1) + "-" + Math.min(end, outdatedPlugins.length) + 
@@ -455,8 +492,9 @@ private String generateHTMLReport(plugins, vulnerabilities, outdated, riskScore,
         }
         
         function esc(str) {
+            if (!str) return '';
             const div = document.createElement('div');
-            div.textContent = str || '';
+            div.textContent = str.toString();
             return div.innerHTML;
         }
         

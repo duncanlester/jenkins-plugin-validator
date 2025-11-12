@@ -1,7 +1,7 @@
 #!/usr/bin/env groovy
 
 def fetchInstalledPlugins() {
-    echo "📦 Fetching installed Jenkins plugins..."
+    echo "📦 Fetching installed Jenkins plugins with ALL available metadata..."
     
     def pluginData = getPluginData()
     
@@ -10,36 +10,102 @@ def fetchInstalledPlugins() {
     writeFile file: 'plugins.json', text: env.PLUGIN_DATA
     archiveArtifacts artifacts: 'plugins.json'
     
-    echo "✅ Found ${pluginData.size()} plugins"
+    echo "✅ Found ${pluginData.size()} plugins with complete metadata"
 }
 
 @NonCPS
 def getPluginData() {
     def jenkins = Jenkins.instance
     def pluginManager = jenkins.pluginManager
+    def updateCenter = jenkins.updateCenter
     def plugins = pluginManager.plugins
     
     return plugins.collect { plugin ->
         try {
-            // Only collect basic, safe properties
-            return [
-                shortName: plugin.shortName,
-                longName: plugin.longName,
-                version: plugin.version.toString(),
-                enabled: plugin.enabled,
-                active: plugin.active,
-                hasUpdate: plugin.hasUpdate(),
-                url: plugin.url ?: null,
-                dependencies: plugin.dependencies.collect { dep ->
-                    [
-                        shortName: dep.shortName,
-                        version: dep.version.toString(),
-                        optional: dep.optional
-                    ]
+            def pluginInfo = null
+            try {
+                pluginInfo = updateCenter.getPlugin(plugin.shortName)
+            } catch (Exception e) {
+                // UpdateCenter not available for this plugin
+            }
+            
+            def metadata = [:]
+            
+            // Basic info - always available
+            metadata.shortName = plugin.shortName
+            metadata.longName = plugin.longName
+            metadata.version = plugin.version.toString()
+            metadata.enabled = plugin.enabled
+            metadata.active = plugin.active
+            metadata.hasUpdate = plugin.hasUpdate()
+            metadata.url = plugin.url
+            
+            // Dependencies
+            metadata.dependencies = plugin.dependencies.collect { dep ->
+                [
+                    shortName: dep.shortName,
+                    version: dep.version.toString(),
+                    optional: dep.optional
+                ]
+            }
+            
+            // Try to get additional metadata from UpdateCenter
+            if (pluginInfo != null) {
+                try {
+                    // Get all available properties from pluginInfo
+                    def props = pluginInfo.getClass().getDeclaredFields()
+                    
+                    props.each { field ->
+                        try {
+                            field.setAccessible(true)
+                            def value = field.get(pluginInfo)
+                            if (value != null) {
+                                def fieldName = field.name
+                                
+                                // Handle specific types
+                                if (fieldName == 'developers' && value instanceof Collection) {
+                                    metadata.developers = value.collect { dev ->
+                                        [
+                                            name: dev.name ?: 'Unknown',
+                                            email: dev.email ?: null,
+                                            id: dev.developerId ?: null
+                                        ]
+                                    }
+                                } else if (fieldName == 'labels' && value instanceof Collection) {
+                                    metadata.labels = value.collect { it.toString() }
+                                } else if (fieldName in ['scm', 'wiki', 'issueTrackerUrl', 'excerpt']) {
+                                    metadata[fieldName] = value.toString()
+                                } else if (fieldName == 'releaseTimestamp') {
+                                    metadata.releaseTimestamp = value.toString()
+                                } else if (fieldName == 'requiredCore') {
+                                    metadata.requiredCoreVersion = value.toString()
+                                }
+                            }
+                        } catch (Exception e) {
+                            // Skip this field
+                        }
+                    }
+                } catch (Exception e) {
+                    // Can't introspect
                 }
-            ]
+            }
+            
+            // Manifest info
+            try {
+                if (plugin.manifest != null) {
+                    def attrs = plugin.manifest.mainAttributes
+                    metadata.buildDate = attrs.getValue('Build-Date')
+                    metadata.builtBy = attrs.getValue('Built-By')
+                    metadata.jenkinsVersion = attrs.getValue('Jenkins-Version')
+                    metadata.pluginVersion = attrs.getValue('Plugin-Version')
+                }
+            } catch (Exception e) {
+                // No manifest data
+            }
+            
+            return metadata
         } catch (Exception e) {
-            echo "⚠️ Error getting data for ${plugin.shortName}: ${e.message}"
+            echo "⚠️ Error getting metadata for ${plugin.shortName}: ${e.message}"
             return [
                 shortName: plugin.shortName,
                 longName: plugin.longName ?: plugin.shortName,
