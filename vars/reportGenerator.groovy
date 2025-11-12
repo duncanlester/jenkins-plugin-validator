@@ -14,44 +14,6 @@ def generateReports() {
     def jenkinsVersion = Jenkins.instance.version.toString()
     def currentUser = getCurrentUser()
     
-    // Generate pages (50 plugins per page)
-    def pageSize = 50
-    def totalPages = Math.ceil(pluginCount / pageSize).toInteger()
-    
-    // Generate main report with page 1
-    def html = generatePage(plugins, vulns, 1, pageSize, totalPages, timestamp, jenkinsVersion, currentUser)
-    writeFile file: 'plugin-validation-report.html', text: html
-    
-    // Generate additional pages
-    for (int i = 2; i <= totalPages; i++) {
-        def pageHtml = generatePage(plugins, vulns, i, pageSize, totalPages, timestamp, jenkinsVersion, currentUser)
-        writeFile file: "plugin-validation-report-page${i}.html", text: pageHtml
-    }
-    
-    archiveArtifacts artifacts: '*.html,plugins.json'
-    
-    try {
-        publishHTML([
-            allowMissing: false,
-            alwaysLinkToLastBuild: true,
-            keepAll: true,
-            reportDir: '.',
-            reportFiles: 'plugin-validation-report.html',
-            reportName: 'Plugin Validation Report'
-        ])
-    } catch (Exception e) {
-        echo "⚠️ HTML Publisher not available"
-    }
-    
-    echo "✅ Reports generated successfully!"
-}
-
-def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, jenkinsVersion, currentUser) {
-    def pluginCount = plugins.size()
-    def startIdx = (currentPage - 1) * pageSize
-    def endIdx = Math.min(startIdx + pageSize, pluginCount)
-    def pagePlugins = plugins[startIdx..<endIdx]
-    
     def vulnCount = env.VULN_COUNT?.toInteger() ?: 0
     def outdatedCount = env.OUTDATED_COUNT?.toInteger() ?: 0
     def riskScore = env.RISK_SCORE?.toInteger() ?: 0
@@ -62,7 +24,7 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jenkins Plugin Validation Report - Page ${currentPage}</title>
+    <title>Jenkins Plugin Validation Report</title>
     <style>
         :root {
             --primary: #335eea;
@@ -222,34 +184,6 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
         .badge-enabled { background: var(--success); color: white; }
         .badge-disabled { background: var(--text-muted); color: white; }
         
-        .pagination { 
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 28px;
-            padding-top: 24px;
-            border-top: 2px solid var(--border);
-        }
-        
-        .pagination-info { font-size: 14px; color: var(--text-muted); font-weight: 500; }
-        
-        .pagination-buttons { display: flex; gap: 12px; }
-        
-        .pagination a { 
-            padding: 12px 24px;
-            border: 2px solid var(--primary);
-            background: white;
-            color: var(--primary);
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 13px;
-            text-decoration: none;
-            transition: all 0.2s;
-        }
-        
-        .pagination a:hover { background: var(--primary); color: white; }
-        .pagination a.disabled { opacity: 0.3; pointer-events: none; border-color: var(--border); color: var(--text-muted); }
-        
         code { 
             background: #f4f5f7;
             padding: 4px 8px;
@@ -273,13 +207,7 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
                 <div><strong>User:</strong> ${currentUser}</div>
             </div>
         </div>
-"""
-
-    if (currentPage == 1) {
-        def vulnColor = vulnCount > 0 ? 'var(--danger)' : 'var(--success)'
-        def riskColor = riskScore < 30 ? 'var(--success)' : (riskScore < 70 ? 'var(--warning)' : 'var(--danger)')
         
-        html << """
         <div class="stats">
             <div class="stat-card">
                 <h3>Total Plugins</h3>
@@ -287,7 +215,7 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
             </div>
             <div class="stat-card">
                 <h3>Vulnerabilities</h3>
-                <div class="value" style="color: ${vulnColor};">${vulnCount}</div>
+                <div class="value" style="color: ${vulnCount > 0 ? 'var(--danger)' : 'var(--success)'};">${vulnCount}</div>
             </div>
             <div class="stat-card">
                 <h3>Outdated</h3>
@@ -295,13 +223,13 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
             </div>
             <div class="stat-card">
                 <h3>Risk Score</h3>
-                <div class="value" style="color: ${riskColor};">${riskScore}<span style="font-size:24px;color:var(--text-muted);">/100</span></div>
+                <div class="value" style="color: ${riskScore < 30 ? 'var(--success)' : (riskScore < 70 ? 'var(--warning)' : 'var(--danger)')};">${riskScore}<span style="font-size:24px;color:var(--text-muted);">/100</span></div>
             </div>
         </div>
 """
 
-        if (vulns.size() > 0) {
-            html << """
+    if (vulns.size() > 0) {
+        html << """
         <div class="section">
             <h2>🚨 Security Vulnerabilities</h2>
             <table>
@@ -316,8 +244,8 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
                 </thead>
                 <tbody>
 """
-            vulns.each { v ->
-                html << """
+        vulns.each { v ->
+            html << """
                     <tr>
                         <td><strong>${escapeHtml(v.plugin)}</strong></td>
                         <td>${escapeHtml(v.version)}</td>
@@ -326,18 +254,17 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
                         <td>${escapeHtml(v.description)}</td>
                     </tr>
 """
-            }
-            html << """
+        }
+        html << """
                 </tbody>
             </table>
         </div>
 """
-        }
     }
 
     html << """
         <div class="section">
-            <h2>📦 Installed Plugins</h2>
+            <h2>📦 Installed Plugins (${pluginCount} total)</h2>
             <table>
                 <thead>
                     <tr>
@@ -353,7 +280,7 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
                 <tbody>
 """
 
-    pagePlugins.each { p ->
+    plugins.each { p ->
         def devName = (p.developerNames ?: 'Unknown').toString().split(':')[0]
         def statusBadge = p.enabled ? 'enabled">ENABLED' : 'disabled">DISABLED'
         
@@ -373,35 +300,29 @@ def generatePage(plugins, vulns, currentPage, pageSize, totalPages, timestamp, j
     html << """
                 </tbody>
             </table>
-            <div class="pagination">
-                <div class="pagination-info">Showing ${startIdx + 1}-${endIdx} of ${pluginCount} plugins (Page ${currentPage} of ${totalPages})</div>
-                <div class="pagination-buttons">
-"""
-
-    // Pagination links
-    def prevPage = currentPage - 1
-    def nextPage = currentPage + 1
-    def firstClass = currentPage == 1 ? ' disabled' : ''
-    def lastClass = currentPage == totalPages ? ' disabled' : ''
-    def firstLink = currentPage == 1 ? '#' : 'plugin-validation-report.html'
-    def prevLink = currentPage == 1 ? '#' : (prevPage == 1 ? 'plugin-validation-report.html' : "plugin-validation-report-page${prevPage}.html")
-    def nextLink = currentPage == totalPages ? '#' : "plugin-validation-report-page${nextPage}.html"
-    def lastLink = currentPage == totalPages ? '#' : "plugin-validation-report-page${totalPages}.html"
-
-    html << """
-                    <a href="${firstLink}" class="${firstClass}">First</a>
-                    <a href="${prevLink}" class="${firstClass}">Previous</a>
-                    <a href="${nextLink}" class="${lastClass}">Next</a>
-                    <a href="${lastLink}" class="${lastClass}">Last</a>
-                </div>
-            </div>
         </div>
     </div>
 </body>
 </html>
 """
 
-    return html.toString()
+    writeFile file: 'plugin-validation-report.html', text: html.toString()
+    archiveArtifacts artifacts: '*.html,plugins.json'
+    
+    try {
+        publishHTML([
+            allowMissing: false,
+            alwaysLinkToLastBuild: true,
+            keepAll: true,
+            reportDir: '.',
+            reportFiles: 'plugin-validation-report.html',
+            reportName: 'Plugin Validation Report'
+        ])
+    } catch (Exception e) {
+        echo "⚠️ HTML Publisher not available"
+    }
+    
+    echo "✅ Reports generated successfully!"
 }
 
 @NonCPS
