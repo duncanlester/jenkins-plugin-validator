@@ -134,6 +134,13 @@ def generateReports() {
             border-left: 4px solid var(--primary);
         }
         
+        .summary-item-success {
+            padding: 16px;
+            background: #f8f9fc;
+            border-radius: 8px;
+            border-left: 4px solid var(--success);
+        }
+        
         .summary-item h4 {
             font-size: 13px;
             text-transform: uppercase;
@@ -145,6 +152,23 @@ def generateReports() {
         }
         
         .summary-item .summary-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text);
+            text-align: left;
+        }
+        
+        .summary-item-success h4 {
+            font-size: 13px;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-align: left;
+        }
+        
+        .summary-item-success .summary-value {
             font-size: 20px;
             font-weight: 700;
             color: var(--text);
@@ -359,7 +383,7 @@ def generateReports() {
         html << """
         <div class="section">
             <h2>✅ Security Status</h2>
-            <div class="summary-item" style="border-left-color: var(--success);">
+            <div class="summary-item-success">
                 <h4>No Vulnerabilities Detected</h4>
                 <div class="summary-value color-success">All plugins are secure</div>
             </div>
