@@ -53,8 +53,8 @@ def generateReports() {
         
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: var(--bg);
-            color: var(--text);
+            background: #f8f9fc;
+            color: #1e2130;
             line-height: 1.6;
             padding: 30px 20px;
         }
@@ -62,12 +62,12 @@ def generateReports() {
         .container { max-width: 1600px; margin: 0 auto; }
         
         .header { 
-            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            background: #335eea;
             color: white;
             padding: 50px 40px;
             border-radius: 16px;
             margin-bottom: 40px;
-            box-shadow: var(--shadow-lg);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
         }
         
         .header h1 { 
@@ -88,21 +88,21 @@ def generateReports() {
         .header-meta strong { font-weight: 600; opacity: 1; }
         
         .section { 
-            background: var(--card-bg);
+            background: #ffffff;
             padding: 36px;
             border-radius: 12px;
             margin-bottom: 32px;
-            box-shadow: var(--shadow);
-            border: 1px solid var(--border);
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            border: 1px solid #e1e4e8;
         }
         
         .section h2 { 
             font-size: 28px;
             font-weight: 700;
             margin-bottom: 24px;
-            color: var(--text);
+            color: #1e2130;
             padding-bottom: 16px;
-            border-bottom: 3px solid var(--primary);
+            border-bottom: 3px solid #335eea;
             text-align: left;
         }
         
@@ -131,20 +131,20 @@ def generateReports() {
             padding: 16px;
             background: #f8f9fc;
             border-radius: 8px;
-            border-left: 4px solid var(--primary);
+            border-left: 4px solid #335eea;
         }
         
         .summary-item-success {
             padding: 16px;
             background: #f8f9fc;
             border-radius: 8px;
-            border-left: 4px solid var(--success);
+            border-left: 4px solid #00c48c;
         }
         
         .summary-item h4 {
             font-size: 13px;
             text-transform: uppercase;
-            color: var(--text-muted);
+            color: #6c757d;
             margin-bottom: 8px;
             font-weight: 600;
             letter-spacing: 0.5px;
@@ -154,14 +154,14 @@ def generateReports() {
         .summary-item .summary-value {
             font-size: 20px;
             font-weight: 700;
-            color: var(--text);
+            color: #1e2130;
             text-align: left;
         }
         
         .summary-item-success h4 {
             font-size: 13px;
             text-transform: uppercase;
-            color: var(--text-muted);
+            color: #6c757d;
             margin-bottom: 8px;
             font-weight: 600;
             letter-spacing: 0.5px;
@@ -171,18 +171,18 @@ def generateReports() {
         .summary-item-success .summary-value {
             font-size: 20px;
             font-weight: 700;
-            color: var(--text);
+            color: #1e2130;
             text-align: left;
         }
         
-        .color-success { color: var(--success); }
-        .color-warning { color: var(--warning); }
-        .color-danger { color: var(--danger); }
+        .color-success { color: #00c48c; }
+        .color-warning { color: #ffa726; }
+        .color-danger { color: #f44336; }
         
         .issue-link {
             display: inline-block;
             padding: 10px 20px;
-            background: var(--primary);
+            background: #335eea;
             color: white;
             text-decoration: none;
             border-radius: 8px;
@@ -192,7 +192,7 @@ def generateReports() {
         }
         
         .issue-link:hover {
-            background: var(--primary-dark);
+            background: #2948c8;
         }
         
         .issue-link-small {
@@ -210,12 +210,12 @@ def generateReports() {
             width: 100%;
             border-collapse: collapse;
             font-size: 13px;
-            border: 2px solid var(--border);
+            border: 2px solid #e1e4e8;
             border-radius: 8px;
         }
         
         thead { 
-            background: linear-gradient(180deg, #f8f9fc 0%, #f1f3f9 100%);
+            background: #f8f9fc;
         }
         
         th { 
@@ -225,17 +225,17 @@ def generateReports() {
             font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
-            color: var(--text);
-            border-bottom: 2px solid var(--border);
-            border-right: 1px solid var(--border);
+            color: #1e2130;
+            border-bottom: 2px solid #e1e4e8;
+            border-right: 1px solid #e1e4e8;
         }
         
         th:last-child { border-right: none; }
         
         td { 
             padding: 14px;
-            border-bottom: 1px solid var(--border);
-            border-right: 1px solid var(--border);
+            border-bottom: 1px solid #e1e4e8;
+            border-right: 1px solid #e1e4e8;
             vertical-align: middle;
             text-align: left;
         }
@@ -267,12 +267,12 @@ def generateReports() {
             letter-spacing: 0.3px;
         }
         
-        .badge-critical { background: var(--critical); color: white; }
-        .badge-high { background: var(--danger); color: white; }
-        .badge-medium { background: var(--warning); color: white; }
+        .badge-critical { background: #c62828; color: white; }
+        .badge-high { background: #f44336; color: white; }
+        .badge-medium { background: #ffa726; color: white; }
         .badge-low { background: #90caf9; color: #0d47a1; }
-        .badge-enabled { background: var(--success); color: white; }
-        .badge-disabled { background: var(--text-muted); color: white; }
+        .badge-enabled { background: #00c48c; color: white; }
+        .badge-disabled { background: #6c757d; color: white; }
         
         code { 
             background: #f4f5f7;
@@ -333,7 +333,7 @@ def generateReports() {
             </div>
             <div class="links-group">
                 <a href="${buildUrl}" class="issue-link">📋 View Build Details</a>
-                <a href="${buildUrl}console" class="issue-link">📄 View Console Output</a>
+                <a href="${buildUrl}console" class="issue-link">�� View Console Output</a>
             </div>
         </div>
 """
