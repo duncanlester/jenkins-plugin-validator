@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  dtrack-apiserver:
+    image: dependencytrack/apiserver:latest
+    container_name: dtrack-apiserver
+    environment:
+      ALPINE_DATABASE_MODE: external
+      ALPINE_DATABASE_URL: jdbc:postgresql://dtrack-postgres:5432/dtrack
+      ALPINE_DATABASE_DRIVER: org.postgresql.Driver
+      ALPINE_DATABASE_USERNAME: dtrack
+      ALPINE_DATABASE_PASSWORD: dtrack
+      ALPINE_SECRET_KEY_PATH: /data/.secret.key
+      ALPINE_DATA_DIRECTORY: /data
+      ALPINE_WORKER_THREADS: "4"
+      LOGGING_LEVEL: INFO
+    ports:
+      - "8081:8080"
+    volumes:
+      - dtrack-data:/data
+    depends_on:
+      - dtrack-postgres
+    networks:
+      - dtrack-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  dtrack-frontend:
+    image: dependencytrack/frontend:latest
+    container_name: dtrack-frontend
+    environment:
+      API_BASE_URL: http://localhost:8081
+    ports:
+      - "8082:8080"
+    depends_on:
+      - dtrack-apiserver
+    networks:
+      - dtrack-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dtrack-postgres:
+    image: postgres:16-alpine
+    container_name: dtrack-postgres
+    environment:
+      POSTGRES_DB: dtrack
+      POSTGRES_USER: dtrack
+      POSTGRES_PASSWORD: dtrack
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - dtrack-postgres-data:/var/lib/postgresql/data
+    networks:
+      - dtrack-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dtrack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  dtrack-data:
+  dtrack-postgres-data:
+
+networks:
+  dtrack-network:
+    driver: bridge
