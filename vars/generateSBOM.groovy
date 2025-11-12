@@ -14,8 +14,8 @@ def call() {
     def sbomJson = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(sbom))
     writeFile file: 'sbom.json', text: sbomJson
     
-    generateSPDX(plugins, jenkinsVersion, timestamp)
-    generateSBOMReport(sbom, plugins.size(), vulns.size())
+    def spdxContent = generateSPDX(plugins, jenkinsVersion, timestamp)
+    generateSBOMReport(sbom, spdxContent, plugins.size(), vulns.size())
     
     archiveArtifacts artifacts: 'sbom.json,sbom.spdx,sbom-report.html,sbom-style.css'
     
@@ -88,16 +88,19 @@ def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
 def generateSPDX(plugins, jenkinsVersion, timestamp) {
     def spdx = buildSPDXContent(plugins, jenkinsVersion)
     writeFile file: 'sbom.spdx', text: spdx
+    return spdx
 }
 
 @NonCPS
 def buildSPDXContent(plugins, jenkinsVersion) {
     def spdx = new StringBuilder()
+    def docId = UUID.randomUUID().toString()
+    
     spdx << """SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
 SPDXID: SPDDocument
 DocumentName: Jenkins-Plugin-SBOM
-DocumentNamespace: https://jenkins.io/sbom/${UUID.randomUUID()}
+DocumentNamespace: https://jenkins.io/sbom/${docId}
 Creator: Tool: plugin-validator-1.0.0
 
 PackageName: Jenkins
@@ -123,12 +126,18 @@ Relationship: SPDPackage-Jenkins DEPENDS_ON ${pkgId}
     return spdx.toString()
 }
 
-def generateSBOMReport(sbom, componentCount, vulnCount) {
+def generateSBOMReport(sbom, spdxContent, componentCount, vulnCount) {
     def cssContent = libraryResource('report-style.css')
     writeFile file: 'sbom-style.css', text: cssContent
     
     def serialNum = sbom.serialNumber.replaceAll('urn:uuid:', '')
     def vulnColorClass = vulnCount > 0 ? 'color-danger' : 'color-success'
+    
+    // Escape HTML in SPDX content
+    def spdxHtml = spdxContent.toString()
+        .replace('&', '&amp;')
+        .replace('<', '&lt;')
+        .replace('>', '&gt;')
     
     def html = """<!DOCTYPE html>
 <html lang="en">
@@ -175,6 +184,12 @@ def generateSBOMReport(sbom, componentCount, vulnCount) {
                 <a href="sbom.spdx" class="issue-link" download>📥 Download SPDX</a>
                 <a href="plugins.json" class="issue-link" download>📥 Download Raw Data</a>
             </div>
+        </div>
+        
+        <div class="section">
+            <h2>📋 SPDX Document (ISO/IEC 5962:2021)</h2>
+            <p class="sbom-intro">Software Package Data eXchange (SPDX) is an open standard for communicating software bill of material information.</p>
+            <pre class="spdx-viewer"><code>${spdxHtml}</code></pre>
         </div>
         
         <div class="section">
