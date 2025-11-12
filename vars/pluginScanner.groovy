@@ -3,10 +3,16 @@
 def fetchInstalledPlugins() {
     echo "📦 Fetching plugin metadata (PluginWrapper + Manifest only)..."
     def pluginData = getPluginData()
+    
+    // Set ALL the env vars properly
     env.PLUGIN_DATA = groovy.json.JsonOutput.toJson(pluginData)
+    env.TOTAL_PLUGINS = pluginData.size().toString()
+    
     writeFile file: 'plugins.json', text: env.PLUGIN_DATA
     archiveArtifacts artifacts: 'plugins.json'
     echo "✅ Found ${pluginData.size()} plugins"
+    
+    return pluginData.size()
 }
 
 @NonCPS
@@ -17,7 +23,7 @@ def getPluginData() {
     return plugins.collect { p ->
         def m = [:]
         
-        // PluginWrapper fields - always safe
+        // PluginWrapper fields
         m.shortName = p.shortName
         m.longName = p.longName
         m.version = p.version.toString()
@@ -35,7 +41,7 @@ def getPluginData() {
         }
         m.dependencyCount = m.dependencies.size()
         
-        // Manifest data ONLY - no UpdateCenter access at all
+        // Manifest data
         try {
             def attrs = p.manifest?.mainAttributes
             if (attrs) {
@@ -109,7 +115,16 @@ def scanVulnerabilities() {
         warnings.findAll { w -> w.name == p.shortName }.each { w ->
             def cve = (w.id =~ /CVE-\d{4}-\d+/) ? (w.id =~ /CVE-\d{4}-\d+/)[0] : w.id
             def sev = determineSeverity(w.message)
-            vulns << [plugin: p.shortName, version: p.version, cve: cve, severity: sev, cvss: getCvssScore(sev), description: w.message, url: w.url, installed: p.version]
+            vulns << [
+                plugin: p.shortName, 
+                version: p.version, 
+                cve: cve, 
+                severity: sev, 
+                cvss: getCvssScore(sev), 
+                description: w.message, 
+                url: w.url, 
+                installed: p.version
+            ]
         }
     }
     
