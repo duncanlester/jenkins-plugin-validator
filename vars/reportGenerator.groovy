@@ -22,10 +22,8 @@ def generateReports() {
     def vulnColorClass = vulnCount > 0 ? 'color-danger' : 'color-success'
     def riskColorClass = riskScore < 30 ? 'color-success' : (riskScore < 70 ? 'color-warning' : 'color-danger')
     
-    // Get Jenkins URL and build info for issue links
     def jenkinsUrl = env.JENKINS_URL ?: 'http://localhost:8080/'
     def buildUrl = env.BUILD_URL ?: "${jenkinsUrl}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/"
-    def issueUrl = "${jenkinsUrl}job/${env.JOB_NAME}/issues" // Adjust if you track issues elsewhere
     
     def html = new StringBuilder()
     html << """<!DOCTYPE html>
@@ -220,13 +218,14 @@ def generateReports() {
         
         .td-center { text-align: center; }
         
+        .col-18 { width: 18%; }
         .col-25 { width: 25%; }
         .col-20 { width: 20%; }
         .col-15 { width: 15%; }
         .col-12 { width: 12%; }
         .col-10 { width: 10%; }
         .col-8 { width: 8%; }
-        .col-43 { width: 43%; }
+        .col-38 { width: 38%; }
         
         .badge { 
             display: inline-block;
@@ -253,6 +252,16 @@ def generateReports() {
             font-size: 12px;
             color: #e83e8c;
             border: 1px solid #e1e4e8;
+        }
+        
+        a.cve-link {
+            color: #e83e8c;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        a.cve-link:hover {
+            text-decoration: underline;
         }
         
         strong { font-weight: 600; }
@@ -310,23 +319,28 @@ def generateReports() {
             <table>
                 <thead>
                     <tr>
-                        <th class="col-20">Plugin</th>
+                        <th class="col-18">Plugin</th>
                         <th class="col-12">Version</th>
-                        <th class="col-15">CVE</th>
+                        <th class="col-12">CVE</th>
                         <th class="col-10">Severity</th>
-                        <th class="col-43">Description</th>
+                        <th class="col-38">Description</th>
+                        <th class="col-10">Reference</th>
                     </tr>
                 </thead>
                 <tbody>
 """
         vulns.each { v ->
+            def cveId = escapeHtml(v.cve)
+            def cveUrl = v.url ?: "https://nvd.nist.gov/vuln/detail/${cveId}"
+            
             html << """
                     <tr>
                         <td><strong>${escapeHtml(v.plugin)}</strong></td>
                         <td>${escapeHtml(v.version)}</td>
-                        <td><code>${escapeHtml(v.cve)}</code></td>
+                        <td><code><a href="${cveUrl}" class="cve-link" target="_blank" rel="noopener">${cveId}</a></code></td>
                         <td><span class="badge badge-${v.severity.toLowerCase()}">${escapeHtml(v.severity)}</span></td>
                         <td>${escapeHtml(v.description)}</td>
+                        <td><a href="${cveUrl}" class="issue-link issue-link-small" target="_blank" rel="noopener">View CVE</a></td>
                     </tr>
 """
         }
