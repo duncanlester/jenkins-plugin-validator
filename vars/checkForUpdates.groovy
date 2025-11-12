@@ -4,17 +4,22 @@ def call() {
     echo "🔄 Checking for plugin updates..."
     
     def plugins = readJSON text: env.PLUGIN_DATA
-    def outdated = []
-    
-    plugins.each { p ->
-        if (p.hasUpdate) {
-            outdated << p
-        }
-    }
+    def outdated = findOutdated(plugins)
     
     echo "📦 Found ${outdated.size()} plugins with updates available"
     env.OUTDATED_PLUGINS = groovy.json.JsonOutput.toJson(outdated)
     env.OUTDATED_COUNT = outdated.size().toString()
     
+    return outdated
+}
+
+@NonCPS
+def findOutdated(plugins) {
+    def outdated = []
+    plugins.each { p ->
+        if (p.hasUpdate) {
+            outdated << p
+        }
+    }
     return outdated
 }

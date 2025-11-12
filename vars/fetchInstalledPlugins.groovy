@@ -3,6 +3,19 @@
 def call() {
     echo "🔍 Fetching installed plugins..."
     
+    def pluginList = getPluginList()
+    
+    echo "📊 Found ${pluginList.size()} installed plugins"
+    
+    def pluginJson = groovy.json.JsonOutput.toJson(pluginList)
+    writeFile file: 'plugins.json', text: pluginJson
+    env.PLUGIN_DATA = pluginJson
+    
+    return pluginList
+}
+
+@NonCPS
+def getPluginList() {
     def jenkins = Jenkins.instance
     def pluginManager = jenkins.pluginManager
     def plugins = pluginManager.plugins
@@ -27,12 +40,6 @@ def call() {
         ]
         pluginList << pluginInfo
     }
-    
-    echo "📊 Found ${pluginList.size()} installed plugins"
-    
-    def pluginJson = groovy.json.JsonOutput.toJson(pluginList)
-    writeFile file: 'plugins.json', text: pluginJson
-    env.PLUGIN_DATA = pluginJson
     
     return pluginList
 }

@@ -9,6 +9,21 @@ def call() {
     def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
     def jenkinsVersion = Jenkins.instance.version.toString()
     
+    def sbom = buildSBOM(plugins, vulns, timestamp, jenkinsVersion)
+    
+    def sbomJson = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(sbom))
+    writeFile file: 'sbom.json', text: sbomJson
+    
+    generateSPDX(plugins, jenkinsVersion, timestamp)
+    generateSBOMReport(sbom, plugins.size(), vulns.size())
+    
+    archiveArtifacts artifacts: 'sbom.json,sbom.spdx,sbom-report.html,sbom-style.css'
+    
+    echo "✅ SBOM generated: ${plugins.size()} components, ${vulns.size()} vulnerabilities"
+}
+
+@NonCPS
+def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
     def sbom = [
         bomFormat: "CycloneDX",
         specVersion: "1.5",
@@ -67,18 +82,16 @@ def call() {
         ]
     }
     
-    def sbomJson = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(sbom))
-    writeFile file: 'sbom.json', text: sbomJson
-    
-    generateSPDX(plugins, jenkinsVersion, timestamp)
-    generateSBOMReport(sbom, plugins.size(), vulns.size())
-    
-    archiveArtifacts artifacts: 'sbom.json,sbom.spdx,sbom-report.html,sbom-style.css'
-    
-    echo "✅ SBOM generated: ${plugins.size()} components, ${vulns.size()} vulnerabilities"
+    return sbom
 }
 
 def generateSPDX(plugins, jenkinsVersion, timestamp) {
+    def spdx = buildSPDXContent(plugins, jenkinsVersion)
+    writeFile file: 'sbom.spdx', text: spdx
+}
+
+@NonCPS
+def buildSPDXContent(plugins, jenkinsVersion) {
     def spdx = new StringBuilder()
     spdx << """SPDXVersion: SPDX-2.3
 DataLicense: CC0-1.0
@@ -107,7 +120,7 @@ Relationship: SPDPackage-Jenkins DEPENDS_ON ${pkgId}
 """
     }
     
-    writeFile file: 'sbom.spdx', text: spdx.toString()
+    return spdx.toString()
 }
 
 def generateSBOMReport(sbom, componentCount, vulnCount) {

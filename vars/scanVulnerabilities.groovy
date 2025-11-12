@@ -6,6 +6,21 @@ def call() {
     def plugins = readJSON text: env.PLUGIN_DATA
     def warnings = readJSON text: (env.SECURITY_WARNINGS ?: '[]')
     
+    def vulnerabilities = findVulnerabilities(plugins, warnings)
+    
+    echo "🚨 Found ${vulnerabilities.size()} vulnerabilities"
+    env.VULNERABILITIES = groovy.json.JsonOutput.toJson(vulnerabilities)
+    env.VULN_COUNT = vulnerabilities.size().toString()
+    
+    if (vulnerabilities.size() > 0) {
+        currentBuild.result = 'UNSTABLE'
+    }
+    
+    return vulnerabilities
+}
+
+@NonCPS
+def findVulnerabilities(plugins, warnings) {
     def vulnerabilities = []
     
     plugins.each { plugin ->
@@ -26,14 +41,6 @@ def call() {
                 }
             }
         }
-    }
-    
-    echo "🚨 Found ${vulnerabilities.size()} vulnerabilities"
-    env.VULNERABILITIES = groovy.json.JsonOutput.toJson(vulnerabilities)
-    env.VULN_COUNT = vulnerabilities.size().toString()
-    
-    if (vulnerabilities.size() > 0) {
-        currentBuild.result = 'UNSTABLE'
     }
     
     return vulnerabilities
