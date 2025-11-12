@@ -244,3 +244,22 @@ a.cve-link:hover {
 }
 
 strong { font-weight: 600; }
+
+.serial-number {
+    font-size: 12px;
+    word-break: break-all;
+}
+
+.sbom-intro {
+    margin-bottom: 12px;
+}
+
+.sbom-subheading {
+    margin-top: 20px;
+    margin-bottom: 8px;
+}
+
+.sbom-list {
+    margin-left: 20px;
+    line-height: 1.8;
+}
