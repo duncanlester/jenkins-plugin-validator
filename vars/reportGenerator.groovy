@@ -25,6 +25,10 @@ def generateReports() {
     def jenkinsUrl = env.JENKINS_URL ?: 'http://localhost:8080/'
     def buildUrl = env.BUILD_URL ?: "${jenkinsUrl}job/${env.JOB_NAME}/${env.BUILD_NUMBER}/"
     
+    // Copy CSS file to workspace
+    def cssContent = libraryResource('report-style.css')
+    writeFile file: 'report-style.css', text: cssContent
+    
     def html = new StringBuilder()
     html << """<!DOCTYPE html>
 <html lang="en">
@@ -32,270 +36,7 @@ def generateReports() {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Jenkins Plugin Validation Report</title>
-    <style>
-        :root {
-            --primary: #335eea;
-            --primary-dark: #2948c8;
-            --success: #00c48c;
-            --warning: #ffa726;
-            --danger: #f44336;
-            --critical: #c62828;
-            --bg: #f8f9fc;
-            --card-bg: #ffffff;
-            --text: #1e2130;
-            --text-muted: #6c757d;
-            --border: #e1e4e8;
-            --shadow: 0 2px 12px rgba(0,0,0,0.08);
-            --shadow-lg: 0 8px 24px rgba(0,0,0,0.12);
-        }
-        
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
-            background: #f8f9fc;
-            color: #1e2130;
-            line-height: 1.6;
-            padding: 30px 20px;
-        }
-        
-        .container { max-width: 1600px; margin: 0 auto; }
-        
-        .header { 
-            background: #335eea;
-            color: white;
-            padding: 50px 40px;
-            border-radius: 16px;
-            margin-bottom: 40px;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-        }
-        
-        .header h1 { 
-            font-size: 42px;
-            font-weight: 700;
-            margin-bottom: 16px;
-            letter-spacing: -0.5px;
-            text-align: left;
-        }
-        
-        .header-meta {
-            display: flex;
-            gap: 30px;
-            font-size: 15px;
-            opacity: 0.95;
-        }
-        
-        .header-meta strong { font-weight: 600; opacity: 1; }
-        
-        .section { 
-            background: #ffffff;
-            padding: 36px;
-            border-radius: 12px;
-            margin-bottom: 32px;
-            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
-            border: 1px solid #e1e4e8;
-        }
-        
-        .section h2 { 
-            font-size: 28px;
-            font-weight: 700;
-            margin-bottom: 24px;
-            color: #1e2130;
-            padding-bottom: 16px;
-            border-bottom: 3px solid #335eea;
-            text-align: left;
-        }
-        
-        .section-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-        
-        .section-header h2 {
-            margin-bottom: 0;
-            border-bottom: none;
-            padding-bottom: 0;
-            text-align: left;
-        }
-        
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 24px;
-        }
-        
-        .summary-item {
-            padding: 16px;
-            background: #f8f9fc;
-            border-radius: 8px;
-            border-left: 4px solid #335eea;
-        }
-        
-        .summary-item-success {
-            padding: 16px;
-            background: #f8f9fc;
-            border-radius: 8px;
-            border-left: 4px solid #00c48c;
-        }
-        
-        .summary-item h4 {
-            font-size: 13px;
-            text-transform: uppercase;
-            color: #6c757d;
-            margin-bottom: 8px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            text-align: left;
-        }
-        
-        .summary-item .summary-value {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1e2130;
-            text-align: left;
-        }
-        
-        .summary-item-success h4 {
-            font-size: 13px;
-            text-transform: uppercase;
-            color: #6c757d;
-            margin-bottom: 8px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
-            text-align: left;
-        }
-        
-        .summary-item-success .summary-value {
-            font-size: 20px;
-            font-weight: 700;
-            color: #1e2130;
-            text-align: left;
-        }
-        
-        .color-success { color: #00c48c; }
-        .color-warning { color: #ffa726; }
-        .color-danger { color: #f44336; }
-        
-        .issue-link {
-            display: inline-block;
-            padding: 10px 20px;
-            background: #335eea;
-            color: white;
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 14px;
-            transition: background 0.2s;
-        }
-        
-        .issue-link:hover {
-            background: #2948c8;
-        }
-        
-        .issue-link-small {
-            padding: 8px 16px;
-            font-size: 13px;
-        }
-        
-        .links-group {
-            display: flex;
-            gap: 12px;
-            margin-top: 16px;
-        }
-        
-        table { 
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-            border: 2px solid #e1e4e8;
-            border-radius: 8px;
-        }
-        
-        thead { 
-            background: #f8f9fc;
-        }
-        
-        th { 
-            padding: 16px 14px;
-            text-align: left;
-            font-weight: 700;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #1e2130;
-            border-bottom: 2px solid #e1e4e8;
-            border-right: 1px solid #e1e4e8;
-        }
-        
-        th:last-child { border-right: none; }
-        
-        td { 
-            padding: 14px;
-            border-bottom: 1px solid #e1e4e8;
-            border-right: 1px solid #e1e4e8;
-            vertical-align: middle;
-            text-align: left;
-        }
-        
-        td:last-child { border-right: none; }
-        
-        tbody tr { background: white; }
-        tbody tr:hover { background: #f8f9fc; }
-        tbody tr:last-child td { border-bottom: none; }
-        
-        .td-center { text-align: center; }
-        
-        .col-18 { width: 18%; }
-        .col-25 { width: 25%; }
-        .col-20 { width: 20%; }
-        .col-15 { width: 15%; }
-        .col-12 { width: 12%; }
-        .col-10 { width: 10%; }
-        .col-8 { width: 8%; }
-        .col-38 { width: 38%; }
-        
-        .badge { 
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-        
-        .badge-critical { background: #c62828; color: white; }
-        .badge-high { background: #f44336; color: white; }
-        .badge-medium { background: #ffa726; color: white; }
-        .badge-low { background: #90caf9; color: #0d47a1; }
-        .badge-enabled { background: #00c48c; color: white; }
-        .badge-disabled { background: #6c757d; color: white; }
-        
-        code { 
-            background: #f4f5f7;
-            padding: 4px 8px;
-            border-radius: 4px;
-            font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
-            font-size: 12px;
-            color: #e83e8c;
-            border: 1px solid #e1e4e8;
-        }
-        
-        a.cve-link {
-            color: #e83e8c;
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        a.cve-link:hover {
-            text-decoration: underline;
-        }
-        
-        strong { font-weight: 600; }
-    </style>
+    <link rel="stylesheet" href="report-style.css">
 </head>
 <body>
     <div class="container">
@@ -309,7 +50,7 @@ def generateReports() {
         </div>
 """
 
-    // Summary section at the top
+    // Summary section
     html << """
         <div class="section">
             <h2>📊 Executive Summary</h2>
@@ -333,12 +74,12 @@ def generateReports() {
             </div>
             <div class="links-group">
                 <a href="${buildUrl}" class="issue-link">📋 View Build Details</a>
-                <a href="${buildUrl}console" class="issue-link">�� View Console Output</a>
+                <a href="${buildUrl}console" class="issue-link">📄 View Console Output</a>
             </div>
         </div>
 """
 
-    // Vulnerabilities section
+    // Vulnerabilities
     if (vulns.size() > 0) {
         html << """
         <div class="section">
@@ -362,7 +103,6 @@ def generateReports() {
         vulns.each { v ->
             def cveId = escapeHtml(v.cve)
             def cveUrl = v.url ?: "https://nvd.nist.gov/vuln/detail/${cveId}"
-            
             html << """
                     <tr>
                         <td><strong>${escapeHtml(v.plugin)}</strong></td>
@@ -391,7 +131,7 @@ def generateReports() {
 """
     }
 
-    // Outdated plugins section
+    // Outdated plugins
     if (outdatedCount > 0) {
         html << """
         <div class="section">
@@ -429,7 +169,7 @@ def generateReports() {
 """
     }
 
-    // All plugins section
+    // All plugins
     html << """
         <div class="section">
             <h2>📦 All Installed Plugins (${pluginCount} total)</h2>
@@ -447,12 +187,10 @@ def generateReports() {
                 </thead>
                 <tbody>
 """
-
     plugins.each { p ->
         def devName = (p.developerNames ?: 'Unknown').toString().split(':')[0]
         def statusBadge = p.enabled ? 'enabled' : 'disabled'
         def statusText = p.enabled ? 'ENABLED' : 'DISABLED'
-        
         html << """
                     <tr>
                         <td><strong>${escapeHtml(p.longName)}</strong></td>
@@ -476,7 +214,7 @@ def generateReports() {
 """
 
     writeFile file: 'plugin-validation-report.html', text: html.toString()
-    archiveArtifacts artifacts: 'plugin-validation-report.html,plugins.json'
+    archiveArtifacts artifacts: 'plugin-validation-report.html,report-style.css,plugins.json'
     
     try {
         publishHTML([
