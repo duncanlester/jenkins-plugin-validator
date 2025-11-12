@@ -1,4 +1,4 @@
-@Library('jenkins-plugin-validator') _
+@Library('plugin-validator') _
 
 pipeline {
     agent any
