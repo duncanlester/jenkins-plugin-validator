@@ -12,22 +12,24 @@ def call() {
     
     def vulnerabilities = findVulnerabilities(plugins, warnings)
     
+    echo "Found ${vulnerabilities.size()} raw vulnerability entries"
+    
     // Deduplicate vulnerabilities by plugin name
     def deduped = deduplicateVulnerabilities(vulnerabilities)
     
     echo "============================================"
     echo "Vulnerability Scan Results"
     echo "============================================"
-    echo "Total vulnerabilities found: ${deduped.size()}"
+    echo "Total unique plugins with vulnerabilities: ${deduped.size()}"
     
     if (deduped.size() > 0) {
         echo ""
         echo "Vulnerabilities detected:"
         deduped.each { v ->
             echo "  - ${v.plugin} v${v.version}"
-            echo "    CVEs: ${v.cves.join(', ')}"
+            echo "    CVEs: ${v.cve}"
             echo "    Severity: ${v.severity}"
-            echo "    Description: ${v.description}"
+            echo "    Count: ${v.count} vulnerabilities"
             echo ""
         }
     } else {
@@ -107,45 +109,59 @@ def findVulnerabilities(plugins, warnings) {
 
 @NonCPS
 def deduplicateVulnerabilities(vulnerabilities) {
-    // Group by plugin name
     def grouped = [:]
     
     vulnerabilities.each { v ->
-        def key = "${v.plugin}:${v.version}"
+        def key = v.plugin + ':' + v.version
+        
         if (!grouped.containsKey(key)) {
             grouped[key] = [
                 plugin: v.plugin,
                 version: v.version,
-                cves: [],
+                cve: v.cve,
                 severity: v.severity,
                 description: v.description,
                 url: v.url,
                 cvss: v.cvss,
-                allDescriptions: []
+                count: 1,
+                allCves: [v.cve],
+                allDescriptions: [v.description]
             ]
-        }
-        
-        grouped[key].cves << v.cve
-        grouped[key].allDescriptions << v.description
-        
-        // Keep the highest severity
-        def currentSeverity = grouped[key].severity
-        if (compareSeverity(v.severity, currentSeverity) > 0) {
-            grouped[key].severity = v.severity
-        }
-        
-        // Keep the highest CVSS score
-        if (v.cvss > grouped[key].cvss) {
-            grouped[key].cvss = v.cvss
+        } else {
+            // Add this CVE to the list
+            grouped[key].allCves << v.cve
+            grouped[key].allDescriptions << v.description
+            grouped[key].count++
+            
+            // Keep the highest severity
+            if (compareSeverity(v.severity, grouped[key].severity) > 0) {
+                grouped[key].severity = v.severity
+            }
+            
+            // Keep the highest CVSS score
+            if (v.cvss > grouped[key].cvss) {
+                grouped[key].cvss = v.cvss
+            }
         }
     }
     
-    // Convert back to list and combine descriptions
+    // Convert back to list and combine CVEs and descriptions
     def deduped = []
     grouped.each { key, value ->
-        value.cves = value.cves.unique()
-        value.description = "Multiple vulnerabilities: ${value.cves.join(', ')}. ${value.allDescriptions[0]}"
+        // Make CVE list unique and join
+        def uniqueCves = value.allCves.unique()
+        value.cve = uniqueCves.join(', ')
+        
+        // Combine descriptions
+        if (value.count > 1) {
+            def allDescs = value.allDescriptions.collect { it.take(100) }.join(' | ')
+            value.description = "Multiple vulnerabilities (${value.count}): ${uniqueCves.join(', ')}. ${allDescs}"
+        }
+        
+        // Clean up temporary fields
+        value.remove('allCves')
         value.remove('allDescriptions')
+        
         deduped << value
     }
     
