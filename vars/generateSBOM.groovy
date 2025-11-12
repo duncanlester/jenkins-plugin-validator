@@ -6,12 +6,22 @@ def call() {
     def plugins = readJSON text: env.PLUGIN_DATA
     def vulns = readJSON text: (env.VULNERABILITIES ?: '[]')
     
+    echo "DEBUG: Found ${vulns.size()} vulnerabilities to add to SBOM"
+    if (vulns.size() > 0) {
+        echo "DEBUG: Vulnerability data:"
+        vulns.each { v ->
+            echo "  - Plugin: ${v.plugin}, CVE: ${v.cve}, Severity: ${v.severity}"
+        }
+    }
+    
     def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
     def jenkinsVersion = Jenkins.instance.version.toString()
     
     echo "Building SBOM with ${plugins.size()} components and ${vulns.size()} vulnerabilities"
     
     def sbom = buildSBOM(plugins, vulns, timestamp, jenkinsVersion)
+    
+    echo "DEBUG: SBOM built with ${sbom.components.size()} components and ${sbom.vulnerabilities.size()} vulnerabilities"
     
     def sbomJson = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(sbom))
     writeFile file: 'sbom.json', text: sbomJson
@@ -21,7 +31,7 @@ def call() {
     def spdxContent = generateSPDX(plugins, jenkinsVersion, timestamp)
     echo "✅ SPDX SBOM: ${plugins.size()} packages"
     
-    generateSBOMReport(sbom, spdxContent, plugins.size(), vulns.size())
+    generateSBOMReport(sbom, spdxContent, plugins.size(), vulns)
     
     archiveArtifacts artifacts: 'sbom.json,sbom.spdx,sbom-report.html,sbom-style.css'
     
@@ -84,21 +94,23 @@ def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
         sbom.components << component
     }
     
+    // Add vulnerabilities to SBOM
     vulns.each { v ->
         def vuln = [:]
-        vuln.id = v.cve
+        vuln.id = v.cve ?: 'UNKNOWN'
+        
         vuln.source = [:]
         vuln.source.name = "Jenkins Security Advisory"
         vuln.source.url = v.url ?: "https://www.jenkins.io/security/advisories/"
         
         vuln.ratings = []
         def rating = [:]
-        rating.severity = v.severity
-        rating.score = v.cvss
+        rating.severity = v.severity ?: 'MEDIUM'
+        rating.score = v.cvss ?: 5.0
         rating.method = "CVSSv3"
         vuln.ratings << rating
         
-        vuln.description = v.description
+        vuln.description = v.description ?: 'Security vulnerability detected'
         
         vuln.affects = []
         def affect = [:]
@@ -151,16 +163,17 @@ def buildSPDXContent(plugins, jenkinsVersion) {
     return spdx.toString()
 }
 
-def generateSBOMReport(sbom, spdxContent, componentCount, vulnCount) {
+def generateSBOMReport(sbom, spdxContent, componentCount, vulns) {
     def cssContent = libraryResource('report-style.css')
     writeFile file: 'sbom-style.css', text: cssContent
     
     def serialNum = sbom.serialNumber.replaceAll('urn:uuid:', '')
+    def vulnCount = vulns.size()
     def vulnColorClass = vulnCount > 0 ? 'color-danger' : 'color-success'
     
     def spdxHtml = escapeHtml(spdxContent.toString())
     
-    def html = buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, vulnCount)
+    def html = buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, vulns)
     
     writeFile file: 'sbom-report.html', text: html
 }
@@ -172,11 +185,14 @@ def escapeHtml(str) {
         .replace('&', '&amp;')
         .replace('<', '&lt;')
         .replace('>', '&gt;')
+        .replace('"', '&quot;')
+        .replace("'", '&#39;')
 }
 
 @NonCPS
-def buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, vulnCount) {
+def buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, vulns) {
     def html = new StringBuilder()
+    def vulnCount = vulns.size()
     
     html << '<!DOCTYPE html>\n'
     html << '<html lang="en">\n'
@@ -228,21 +244,60 @@ def buildReportHtml(sbom, spdxHtml, serialNum, vulnColorClass, componentCount, v
     
     if (vulnCount > 0) {
         html << '        <div class="section">\n'
-        html << "            <h2>🚨 Vulnerabilities in SBOM (${vulnCount})</h2>\n"
-        html << '            <p class="sbom-intro">CycloneDX format includes vulnerability data. The SBOM JSON contains:</p>\n'
-        html << '            <ul class="sbom-list">\n'
-        html << "                <li><strong>${componentCount} components</strong> - All Jenkins plugins installed</li>\n"
-        html << "                <li><strong>${vulnCount} vulnerabilities</strong> - Security advisories mapped to components</li>\n"
-        html << '                <li><strong>CVSS scores</strong> - Severity ratings for each vulnerability</li>\n'
-        html << '                <li><strong>Package URLs (PURL)</strong> - Unique identifiers for each component</li>\n'
-        html << '            </ul>\n'
-        html << '            <p class="sbom-intro"><strong>Why CycloneDX?</strong> CycloneDX is specifically designed for security use cases.</p>\n'
+        html << "            <h2>🚨 Vulnerabilities in CycloneDX SBOM (${vulnCount})</h2>\n"
+        html << '            <p class="sbom-intro">The following vulnerabilities are included in the sbom.json file:</p>\n'
+        html << '            <table>\n'
+        html << '                <thead>\n'
+        html << '                    <tr>\n'
+        html << '                        <th class="col-20">Plugin</th>\n'
+        html << '                        <th class="col-15">Version</th>\n'
+        html << '                        <th class="col-20">CVE ID</th>\n'
+        html << '                        <th class="col-10">Severity</th>\n'
+        html << '                        <th class="col-10">CVSS Score</th>\n'
+        html << '                        <th class="col-25">PURL Reference</th>\n'
+        html << '                    </tr>\n'
+        html << '                </thead>\n'
+        html << '                <tbody>\n'
+        
+        vulns.each { v ->
+            def purl = "pkg:jenkins/plugin/${v.plugin}@${v.version}"
+            def cveUrl = escapeHtml(v.url ?: "https://www.jenkins.io/security/advisories/")
+            
+            html << '                    <tr>\n'
+            html << "                        <td><strong>${escapeHtml(v.plugin)}</strong></td>\n"
+            html << "                        <td>${escapeHtml(v.version)}</td>\n"
+            html << "                        <td><a href=\"${cveUrl}\" class=\"cve-link\">${escapeHtml(v.cve)}</a></td>\n"
+            html << "                        <td><span class=\"badge badge-${v.severity.toLowerCase()}\">${escapeHtml(v.severity)}</span></td>\n"
+            html << "                        <td>${v.cvss ?: 'N/A'}</td>\n"
+            html << "                        <td><code>${escapeHtml(purl)}</code></td>\n"
+            html << '                    </tr>\n'
+        }
+        
+        html << '                </tbody>\n'
+        html << '            </table>\n'
+        html << '            <p class="sbom-intro" style="margin-top: 16px;"><strong>Note:</strong> These vulnerabilities are included in the <code>sbom.json</code> file under the <code>vulnerabilities</code> array, mapped to their corresponding components via Package URL (PURL).</p>\n'
         html << '        </div>\n'
     }
     
     html << '        <div class="section">\n'
+    html << '            <h2>📋 Format Comparison: CycloneDX vs SPDX</h2>\n'
+    html << '            <div class="summary-grid">\n'
+    html << '                <div class="summary-item">\n'
+    html << '                    <h4>CycloneDX 1.5</h4>\n'
+    html << '                    <div class="summary-value color-success">✅ Vulnerabilities</div>\n'
+    html << '                    <p style="font-size: 12px; margin-top: 8px;">Security-focused SBOM format with native CVE support</p>\n'
+    html << '                </div>\n'
+    html << '                <div class="summary-item">\n'
+    html << '                    <h4>SPDX 2.3</h4>\n'
+    html << '                    <div class="summary-value color-warning">⚠️  Limited</div>\n'
+    html << '                    <p style="font-size: 12px; margin-top: 8px;">ISO standard focused on licensing and compliance</p>\n'
+    html << '                </div>\n'
+    html << '            </div>\n'
+    html << '        </div>\n'
+    html << '        \n'
+    html << '        <div class="section">\n'
     html << '            <h2>📋 SPDX Document (ISO/IEC 5962:2021)</h2>\n'
-    html << '            <p class="sbom-intro">Software Package Data eXchange (SPDX) standard for SBOM.</p>\n'
+    html << '            <p class="sbom-intro">Software Package Data eXchange (SPDX) standard for SBOM. Note: SPDX 2.3 has limited vulnerability support.</p>\n'
     html << '            <pre class="spdx-viewer"><code>' + spdxHtml + '</code></pre>\n'
     html << '        </div>\n'
     html << '    </div>\n'
