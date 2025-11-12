@@ -1,11 +1,29 @@
 #!/usr/bin/env groovy
 
 def call() {
-    echo "🔍 Fetching installed plugins..."
+    echo "Fetching installed plugins from Jenkins..."
     
     def pluginList = getPluginList()
     
-    echo "📊 Found ${pluginList.size()} installed plugins"
+    echo "Found ${pluginList.size()} installed plugins"
+    
+    def buildPipeline = pluginList.find { 
+        it.shortName == 'build-pipeline-plugin' || 
+        it.shortName == 'build-pipeline' 
+    }
+    
+    if (buildPipeline) {
+        echo "Build Pipeline Plugin found:"
+        echo "  Short Name: ${buildPipeline.shortName}"
+        echo "  Version: ${buildPipeline.version}"
+        echo "  Enabled: ${buildPipeline.enabled}"
+        echo "  Has Update: ${buildPipeline.hasUpdate}"
+    } else {
+        echo "Build Pipeline Plugin not found - checking all plugin names containing 'pipeline':"
+        pluginList.findAll { it.shortName.contains('pipeline') }.each { p ->
+            echo "  - ${p.shortName} (${p.version})"
+        }
+    }
     
     def pluginJson = groovy.json.JsonOutput.toJson(pluginList)
     writeFile file: 'plugins.json', text: pluginJson
