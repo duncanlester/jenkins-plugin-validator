@@ -60,186 +60,178 @@ def buildReportHTML(plugins, vulns, outdated, pluginCount, vulnCount, outdatedCo
                     riskScore, vulnColorClass, riskColorClass, timestamp, 
                     jenkinsVersion, currentUser, buildUrl) {
     def html = new StringBuilder()
-    html << """<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jenkins Plugin Validation Report</title>
-    <link rel="stylesheet" href="report-style.css">
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🔒 Jenkins Plugin Validation Report</h1>
-            <div class="header-meta">
-                <div><strong>Generated:</strong> ${timestamp} UTC</div>
-                <div><strong>Jenkins:</strong> ${jenkinsVersion}</div>
-                <div><strong>User:</strong> ${currentUser}</div>
-            </div>
-        </div>
-        
-        <div class="section">
-            <h2>📊 Jenkins Plugin Vulnerability Summary</h2>
-            <div class="summary-grid">
-                <div class="summary-item">
-                    <h4>Total Plugins Installed</h4>
-                    <div class="summary-value">${pluginCount} plugins</div>
-                </div>
-                <div class="summary-item">
-                    <h4>Security Vulnerabilities</h4>
-                    <div class="summary-value ${vulnColorClass}">${vulnCount} found</div>
-                </div>
-                <div class="summary-item">
-                    <h4>Outdated Plugins</h4>
-                    <div class="summary-value color-warning">${outdatedCount} need updates</div>
-                </div>
-                <div class="summary-item">
-                    <h4>Overall Risk Level</h4>
-                    <div class="summary-value ${riskColorClass}">${riskScore < 30 ? 'Low' : (riskScore < 70 ? 'Medium' : 'High')}</div>
-                </div>
-            </div>
-            <div class="links-group">
-                <a href="${buildUrl}">📋 View Build Details</a>
-                <a href="${buildUrl}console">📄 View Console Output</a>
-            </div>
-        </div>
-"""
+    html << '<!DOCTYPE html>\n'
+    html << '<html lang="en">\n'
+    html << '<head>\n'
+    html << '    <meta charset="UTF-8">\n'
+    html << '    <meta name="viewport" content="width=device-width, initial-scale=1.0">\n'
+    html << '    <title>Jenkins Plugin Validation Report</title>\n'
+    html << '    <link rel="stylesheet" href="report-style.css">\n'
+    html << '</head>\n'
+    html << '<body>\n'
+    html << '    <div class="container">\n'
+    html << '        <div class="header">\n'
+    html << '            <h1>🔒 Jenkins Plugin Validation Report</h1>\n'
+    html << '            <div class="header-meta">\n'
+    html << "                <div><strong>Generated:</strong> ${timestamp} UTC</div>\n"
+    html << "                <div><strong>Jenkins:</strong> ${jenkinsVersion}</div>\n"
+    html << "                <div><strong>User:</strong> ${currentUser}</div>\n"
+    html << '            </div>\n'
+    html << '        </div>\n'
+    html << '        \n'
+    html << '        <div class="section">\n'
+    html << '            <h2>📊 Jenkins Plugin Vulnerability Summary</h2>\n'
+    html << '            <div class="summary-grid">\n'
+    html << '                <div class="summary-item">\n'
+    html << '                    <h4>Total Plugins Installed</h4>\n'
+    html << "                    <div class=\"summary-value\">${pluginCount} plugins</div>\n"
+    html << '                </div>\n'
+    html << '                <div class="summary-item">\n'
+    html << '                    <h4>Security Vulnerabilities</h4>\n'
+    html << "                    <div class=\"summary-value ${vulnColorClass}\">${vulnCount} found</div>\n"
+    html << '                </div>\n'
+    html << '                <div class="summary-item">\n'
+    html << '                    <h4>Outdated Plugins</h4>\n'
+    html << "                    <div class=\"summary-value color-warning\">${outdatedCount} need updates</div>\n"
+    html << '                </div>\n'
+    html << '                <div class="summary-item">\n'
+    html << '                    <h4>Overall Risk Level</h4>\n'
+    def riskLevel = riskScore < 30 ? 'Low' : (riskScore < 70 ? 'Medium' : 'High')
+    html << "                    <div class=\"summary-value ${riskColorClass}\">${riskLevel}</div>\n"
+    html << '                </div>\n'
+    html << '            </div>\n'
+    html << '            <div class="links-group">\n'
+    html << "                <a href=\"${buildUrl}\">📋 View Build Details</a>\n"
+    html << "                <a href=\"${buildUrl}console\">📄 View Console Output</a>\n"
+    html << '            </div>\n'
+    html << '        </div>\n'
 
     // Vulnerabilities section
     if (vulns.size() > 0) {
-        html << """
-        <div class="section">
-            <div class="section-header">
-                <h2>🚨 Security Vulnerabilities (${vulnCount} found)</h2>
-                <a href="${buildUrl}artifact/plugins.json" class="issue-link issue-link-small">📥 Download JSON</a>
-            </div>
-            <table>
-                <thead>
-                    <tr>
-                        <th class="col-18">Plugin</th>
-                        <th class="col-12">Version</th>
-                        <th class="col-20">CVE / Security Advisory</th>
-                        <th class="col-10">Severity</th>
-                        <th class="col-30">Description</th>
-                        <th class="col-10">Reference</th>
-                    </tr>
-                </thead>
-                <tbody>
-"""
+        html << '        <div class="section">\n'
+        html << '            <div class="section-header">\n'
+        html << "                <h2>🚨 Security Vulnerabilities (${vulnCount} found)</h2>\n"
+        html << "                <a href=\"${buildUrl}artifact/plugins.json\" class=\"issue-link issue-link-small\">📥 Download JSON</a>\n"
+        html << '            </div>\n'
+        html << '            <table>\n'
+        html << '                <thead>\n'
+        html << '                    <tr>\n'
+        html << '                        <th class="col-18">Plugin</th>\n'
+        html << '                        <th class="col-12">Version</th>\n'
+        html << '                        <th class="col-20">CVE / Security Advisory</th>\n'
+        html << '                        <th class="col-10">Severity</th>\n'
+        html << '                        <th class="col-30">Description</th>\n'
+        html << '                        <th class="col-10">Reference</th>\n'
+        html << '                    </tr>\n'
+        html << '                </thead>\n'
+        html << '                <tbody>\n'
+        
         vulns.each { v ->
-            def cveId = escapeHtml(v.cve)
             def cveUrl = escapeHtml(v.url ?: "https://www.jenkins.io/security/advisories/")
+            def cveText = v.cve ?: ''
+            def cveIds = cveText.split(',')
             
-            html << """
-                    <tr>
-                        <td><strong>${escapeHtml(v.plugin)}</strong></td>
-                        <td>${escapeHtml(v.version)}</td>
-                        <td><code>${cveId}</code></td>
-                        <td><span class="badge badge-${v.severity.toLowerCase()}">${escapeHtml(v.severity)}</span></td>
-                        <td>${escapeHtml(v.description)}</td>
-                        <td><a href="${cveUrl}">View CVE</a></td>
-                    </tr>
-"""
+            // Create clickable links for each CVE ID
+            def cveLinks = cveIds.collect { cve ->
+                def trimmedCve = escapeHtml(cve.trim())
+                "<a href=\"${cveUrl}\" class=\"cve-link\">${trimmedCve}</a>"
+            }.join(', ')
+            
+            html << '                    <tr>\n'
+            html << "                        <td><strong>${escapeHtml(v.plugin)}</strong></td>\n"
+            html << "                        <td>${escapeHtml(v.version)}</td>\n"
+            html << "                        <td>${cveLinks}</td>\n"
+            html << "                        <td><span class=\"badge badge-${v.severity.toLowerCase()}\">${escapeHtml(v.severity)}</span></td>\n"
+            html << "                        <td>${escapeHtml(v.description)}</td>\n"
+            html << "                        <td><a href=\"${cveUrl}\">View Details</a></td>\n"
+            html << '                    </tr>\n'
         }
-        html << """
-                </tbody>
-            </table>
-        </div>
-"""
+        
+        html << '                </tbody>\n'
+        html << '            </table>\n'
+        html << '        </div>\n'
     } else {
-        html << """
-        <div class="section">
-            <h2>✅ Security Status</h2>
-            <div class="summary-item-success">
-                <h4>No Vulnerabilities Detected</h4>
-                <div class="summary-value color-success">All plugins are secure</div>
-            </div>
-        </div>
-"""
+        html << '        <div class="section">\n'
+        html << '            <h2>✅ Security Status</h2>\n'
+        html << '            <div class="summary-item-success">\n'
+        html << '                <h4>No Vulnerabilities Detected</h4>\n'
+        html << '                <div class="summary-value color-success">All plugins are secure</div>\n'
+        html << '            </div>\n'
+        html << '        </div>\n'
     }
 
     // Outdated plugins section
     if (outdatedCount > 0) {
-        html << """
-        <div class="section">
-            <h2>⚠️ Outdated Plugins (${outdatedCount} need updates)</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th class="col-25">Plugin Name</th>
-                        <th class="col-15">Short Name</th>
-                        <th class="col-15">Current Version</th>
-                        <th class="col-20">Developers</th>
-                        <th class="col-15">Jenkins Version</th>
-                        <th class="col-10">Dependencies</th>
-                    </tr>
-                </thead>
-                <tbody>
-"""
+        html << '        <div class="section">\n'
+        html << "            <h2>⚠️ Outdated Plugins (${outdatedCount} need updates)</h2>\n"
+        html << '            <table>\n'
+        html << '                <thead>\n'
+        html << '                    <tr>\n'
+        html << '                        <th class="col-25">Plugin Name</th>\n'
+        html << '                        <th class="col-15">Short Name</th>\n'
+        html << '                        <th class="col-15">Current Version</th>\n'
+        html << '                        <th class="col-20">Developers</th>\n'
+        html << '                        <th class="col-15">Jenkins Version</th>\n'
+        html << '                        <th class="col-10">Dependencies</th>\n'
+        html << '                    </tr>\n'
+        html << '                </thead>\n'
+        html << '                <tbody>\n'
+        
         outdated.each { p ->
             def devName = (p.developerNames ?: 'Unknown').toString().split(':')[0]
-            html << """
-                    <tr>
-                        <td><strong>${escapeHtml(p.longName)}</strong></td>
-                        <td><code>${escapeHtml(p.shortName)}</code></td>
-                        <td>${escapeHtml(p.version)}</td>
-                        <td>${escapeHtml(devName)}</td>
-                        <td>${escapeHtml(p.jenkinsVersion ?: '-')}</td>
-                        <td class="td-center">${p.dependencyCount ?: 0}</td>
-                    </tr>
-"""
+            html << '                    <tr>\n'
+            html << "                        <td><strong>${escapeHtml(p.longName)}</strong></td>\n"
+            html << "                        <td><code>${escapeHtml(p.shortName)}</code></td>\n"
+            html << "                        <td>${escapeHtml(p.version)}</td>\n"
+            html << "                        <td>${escapeHtml(devName)}</td>\n"
+            html << "                        <td>${escapeHtml(p.jenkinsVersion ?: '-')}</td>\n"
+            html << "                        <td class=\"td-center\">${p.dependencyCount ?: 0}</td>\n"
+            html << '                    </tr>\n'
         }
-        html << """
-                </tbody>
-            </table>
-        </div>
-"""
+        
+        html << '                </tbody>\n'
+        html << '            </table>\n'
+        html << '        </div>\n'
     }
 
     // All plugins section
-    html << """
-        <div class="section">
-            <h2>📦 All Installed Plugins (${pluginCount} total)</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th class="col-25">Plugin Name</th>
-                        <th class="col-15">Short Name</th>
-                        <th class="col-12">Version</th>
-                        <th class="col-10">Status</th>
-                        <th class="col-20">Developers</th>
-                        <th class="col-10">Jenkins Ver</th>
-                        <th class="col-8">Dependencies</th>
-                    </tr>
-                </thead>
-                <tbody>
-"""
+    html << '        <div class="section">\n'
+    html << "            <h2>📦 All Installed Plugins (${pluginCount} total)</h2>\n"
+    html << '            <table>\n'
+    html << '                <thead>\n'
+    html << '                    <tr>\n'
+    html << '                        <th class="col-25">Plugin Name</th>\n'
+    html << '                        <th class="col-15">Short Name</th>\n'
+    html << '                        <th class="col-12">Version</th>\n'
+    html << '                        <th class="col-10">Status</th>\n'
+    html << '                        <th class="col-20">Developers</th>\n'
+    html << '                        <th class="col-10">Jenkins Ver</th>\n'
+    html << '                        <th class="col-8">Dependencies</th>\n'
+    html << '                    </tr>\n'
+    html << '                </thead>\n'
+    html << '                <tbody>\n'
+    
     plugins.each { p ->
         def devName = (p.developerNames ?: 'Unknown').toString().split(':')[0]
         def statusBadge = p.enabled ? 'enabled' : 'disabled'
         def statusText = p.enabled ? 'ENABLED' : 'DISABLED'
-        html << """
-                    <tr>
-                        <td><strong>${escapeHtml(p.longName)}</strong></td>
-                        <td><code>${escapeHtml(p.shortName)}</code></td>
-                        <td>${escapeHtml(p.version)}</td>
-                        <td><span class="badge badge-${statusBadge}">${statusText}</span></td>
-                        <td>${escapeHtml(devName)}</td>
-                        <td>${escapeHtml(p.jenkinsVersion ?: '-')}</td>
-                        <td class="td-center">${p.dependencyCount ?: 0}</td>
-                    </tr>
-"""
+        html << '                    <tr>\n'
+        html << "                        <td><strong>${escapeHtml(p.longName)}</strong></td>\n"
+        html << "                        <td><code>${escapeHtml(p.shortName)}</code></td>\n"
+        html << "                        <td>${escapeHtml(p.version)}</td>\n"
+        html << "                        <td><span class=\"badge badge-${statusBadge}\">${statusText}</span></td>\n"
+        html << "                        <td>${escapeHtml(devName)}</td>\n"
+        html << "                        <td>${escapeHtml(p.jenkinsVersion ?: '-')}</td>\n"
+        html << "                        <td class=\"td-center\">${p.dependencyCount ?: 0}</td>\n"
+        html << '                    </tr>\n'
     }
 
-    html << """
-                </tbody>
-            </table>
-        </div>
-    </div>
-</body>
-</html>
-"""
+    html << '                </tbody>\n'
+    html << '            </table>\n'
+    html << '        </div>\n'
+    html << '    </div>\n'
+    html << '</body>\n'
+    html << '</html>\n'
 
     return html.toString()
 }
