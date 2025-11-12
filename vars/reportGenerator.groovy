@@ -3,15 +3,28 @@
 def generateReports() {
     echo "📝 Generating validation reports..."
     
-    def pluginJson = env.PLUGIN_DATA
-    def vulnJson = env.VULNERABILITIES
-    def outdatedJson = env.OUTDATED_PLUGINS
+    // DEBUG - check what we actually have
+    echo "DEBUG: env.PLUGIN_DATA length: ${env.PLUGIN_DATA?.length() ?: 0}"
+    echo "DEBUG: env.VULN_COUNT: ${env.VULN_COUNT}"
+    echo "DEBUG: env.OUTDATED_COUNT: ${env.OUTDATED_COUNT}"
+    echo "DEBUG: env.RISK_SCORE: ${env.RISK_SCORE}"
     
-    echo "📊 Generating report for ${env.TOTAL_PLUGINS ?: 'unknown'} plugins"
+    // Read from files instead since env vars might be too big
+    def pluginJson = readFile(file: 'plugins.json')
+    def vulnJson = env.VULNERABILITIES ?: '[]'
+    def outdatedJson = env.OUTDATED_PLUGINS ?: '[]'
+    
+    echo "DEBUG: pluginJson length: ${pluginJson.length()}"
     
     def timestamp = new Date().format('yyyy-MM-dd HH:mm:ss', TimeZone.getTimeZone('UTC'))
     def jenkinsVersion = Jenkins.instance.version.toString()
     def currentUser = getCurrentUser()
+    
+    // Count plugins from actual JSON
+    def plugins = readJSON text: pluginJson
+    def pluginCount = plugins.size()
+    
+    echo "📊 Generating report for ${pluginCount} plugins"
     
     def html = """<!DOCTYPE html>
 <html lang="en">
@@ -258,6 +271,16 @@ def generateReports() {
         }
         
         strong { font-weight: 600; }
+        
+        .debug { 
+            background: #fff3cd; 
+            padding: 20px; 
+            margin: 20px 0; 
+            border-radius: 8px; 
+            border: 2px solid #ffc107;
+            font-family: monospace;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
@@ -274,20 +297,27 @@ def generateReports() {
         <div class="stats">
             <div class="stat-card">
                 <h3>Total Plugins</h3>
-                <div class="value" id="totalCount">-</div>
+                <div class="value" id="totalCount">${pluginCount}</div>
             </div>
             <div class="stat-card">
                 <h3>Vulnerabilities</h3>
-                <div class="value" style="color: ${env.VULN_COUNT?.toInteger() > 0 ? 'var(--danger)' : 'var(--success)'};">${env.VULN_COUNT}</div>
+                <div class="value" style="color: ${env.VULN_COUNT?.toInteger() > 0 ? 'var(--danger)' : 'var(--success)'};">${env.VULN_COUNT ?: 0}</div>
             </div>
             <div class="stat-card">
                 <h3>Outdated</h3>
-                <div class="value" style="color: var(--warning);">${env.OUTDATED_COUNT}</div>
+                <div class="value" style="color: var(--warning);">${env.OUTDATED_COUNT ?: 0}</div>
             </div>
             <div class="stat-card">
                 <h3>Risk Score</h3>
-                <div class="value" style="color: ${(env.RISK_SCORE?.toInteger() ?: 0) < 30 ? 'var(--success)' : (env.RISK_SCORE?.toInteger() ?: 0) < 70 ? 'var(--warning)' : 'var(--danger)'};">${env.RISK_SCORE}<span style="font-size:24px;color:var(--text-muted);">/100</span></div>
+                <div class="value" style="color: ${(env.RISK_SCORE?.toInteger() ?: 0) < 30 ? 'var(--success)' : (env.RISK_SCORE?.toInteger() ?: 0) < 70 ? 'var(--warning)' : 'var(--danger)'};">${env.RISK_SCORE ?: 0}<span style="font-size:24px;color:var(--text-muted);">/100</span></div>
             </div>
+        </div>
+        
+        <div class="debug">
+            DEBUG INFO:<br>
+            Plugin JSON length: ${pluginJson.length()}<br>
+            Plugin count: ${pluginCount}<br>
+            Vuln JSON length: ${vulnJson.length()}<br>
         </div>
         
         <div class="section" id="vulnSection" style="display:none;">
@@ -334,8 +364,12 @@ def generateReports() {
         </div>
     </div>
     <script>
+        console.log('Starting script...');
         const data = ${pluginJson};
         const vulns = ${vulnJson};
+        
+        console.log('Data loaded:', data.length, 'plugins');
+        console.log('Vulns loaded:', vulns.length, 'vulnerabilities');
         
         let p=1, pp=50, tp=Math.ceil(data.length/pp);
         
@@ -352,10 +386,12 @@ def generateReports() {
         }
         
         function r(){
+            console.log('Rendering page', p);
             if(p<1) p=1; 
             if(p>tp) p=tp;
             
             const s=(p-1)*pp, e1=s+pp, pg=data.slice(s,e1);
+            console.log('Showing plugins', s, 'to', e1, '=', pg.length, 'plugins');
             
             document.getElementById('tbody').innerHTML = pg.map(x =>
                 '<tr>'+
@@ -383,15 +419,16 @@ def generateReports() {
             return d.innerHTML; 
         }
         
+        console.log('Calling r()...');
         r();
+        console.log('Done!');
     </script>
 </body>
 </html>"""
     
     writeFile file: 'plugin-validation-report.html', text: html
-    writeFile file: 'plugin-validation-report.json', text: pluginJson
     
-    archiveArtifacts artifacts: '*.html,*.json'
+    archiveArtifacts artifacts: '*.html,plugins.json'
     
     try {
         publishHTML([
