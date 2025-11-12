@@ -12,17 +12,20 @@ def call() {
     
     def vulnerabilities = findVulnerabilities(plugins, warnings)
     
+    // Deduplicate vulnerabilities by plugin name
+    def deduped = deduplicateVulnerabilities(vulnerabilities)
+    
     echo "============================================"
     echo "Vulnerability Scan Results"
     echo "============================================"
-    echo "Total vulnerabilities found: ${vulnerabilities.size()}"
+    echo "Total vulnerabilities found: ${deduped.size()}"
     
-    if (vulnerabilities.size() > 0) {
+    if (deduped.size() > 0) {
         echo ""
         echo "Vulnerabilities detected:"
-        vulnerabilities.each { v ->
+        deduped.each { v ->
             echo "  - ${v.plugin} v${v.version}"
-            echo "    CVE: ${v.cve}"
+            echo "    CVEs: ${v.cves.join(', ')}"
             echo "    Severity: ${v.severity}"
             echo "    Description: ${v.description}"
             echo ""
@@ -33,15 +36,15 @@ def call() {
     
     echo "============================================"
     
-    env.VULNERABILITIES = groovy.json.JsonOutput.toJson(vulnerabilities)
-    env.VULN_COUNT = vulnerabilities.size().toString()
+    env.VULNERABILITIES = groovy.json.JsonOutput.toJson(deduped)
+    env.VULN_COUNT = deduped.size().toString()
     
-    if (vulnerabilities.size() > 0) {
+    if (deduped.size() > 0) {
         currentBuild.result = 'UNSTABLE'
         echo "Build marked as UNSTABLE due to security vulnerabilities"
     }
     
-    return vulnerabilities
+    return deduped
 }
 
 @NonCPS
@@ -100,6 +103,61 @@ def findVulnerabilities(plugins, warnings) {
     }
     
     return vulnerabilities
+}
+
+@NonCPS
+def deduplicateVulnerabilities(vulnerabilities) {
+    // Group by plugin name
+    def grouped = [:]
+    
+    vulnerabilities.each { v ->
+        def key = "${v.plugin}:${v.version}"
+        if (!grouped.containsKey(key)) {
+            grouped[key] = [
+                plugin: v.plugin,
+                version: v.version,
+                cves: [],
+                severity: v.severity,
+                description: v.description,
+                url: v.url,
+                cvss: v.cvss,
+                allDescriptions: []
+            ]
+        }
+        
+        grouped[key].cves << v.cve
+        grouped[key].allDescriptions << v.description
+        
+        // Keep the highest severity
+        def currentSeverity = grouped[key].severity
+        if (compareSeverity(v.severity, currentSeverity) > 0) {
+            grouped[key].severity = v.severity
+        }
+        
+        // Keep the highest CVSS score
+        if (v.cvss > grouped[key].cvss) {
+            grouped[key].cvss = v.cvss
+        }
+    }
+    
+    // Convert back to list and combine descriptions
+    def deduped = []
+    grouped.each { key, value ->
+        value.cves = value.cves.unique()
+        value.description = "Multiple vulnerabilities: ${value.cves.join(', ')}. ${value.allDescriptions[0]}"
+        value.remove('allDescriptions')
+        deduped << value
+    }
+    
+    return deduped
+}
+
+@NonCPS
+def compareSeverity(String sev1, String sev2) {
+    def severityOrder = ['LOW': 1, 'MEDIUM': 2, 'HIGH': 3, 'CRITICAL': 4]
+    def level1 = severityOrder[sev1] ?: 0
+    def level2 = severityOrder[sev2] ?: 0
+    return level1 - level2
 }
 
 @NonCPS
