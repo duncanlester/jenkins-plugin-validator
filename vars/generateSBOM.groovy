@@ -85,28 +85,33 @@ def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
     }
 
     vulns.each { v ->
-        def vuln = [:]
-        vuln.id = v.cve ?: 'UNKNOWN'
+        // Split comma-separated CVE IDs into separate vulnerability entries
+        def cveIds = (v.cve ?: 'UNKNOWN').split(',').collect { it.trim() }
 
-        vuln.source = [:]
-        vuln.source.name = "Jenkins Security Advisory"
-        vuln.source.url = v.url ?: "https://www.jenkins.io/security/advisories/"
+        cveIds.each { cveId ->
+            def vuln = [:]
+            vuln.id = cveId
 
-        vuln.ratings = []
-        def rating = [:]
-        rating.severity = (v.severity ?: 'MEDIUM').toLowerCase()  // Convert to lowercase
-        rating.score = v.cvss ?: 5.0
-        rating.method = "CVSSv3"
-        vuln.ratings << rating
+            vuln.source = [:]
+            vuln.source.name = "Jenkins Security Advisory"
+            vuln.source.url = v.url ?: "https://www.jenkins.io/security/advisories/"
 
-        vuln.description = v.description ?: 'Security vulnerability detected'
+            vuln.ratings = []
+            def rating = [:]
+            rating.severity = (v.severity ?: 'medium').toLowerCase()
+            rating.score = v.cvss ?: 5.0
+            rating.method = "CVSSv3"
+            vuln.ratings << rating
 
-        vuln.affects = []
-        def affect = [:]
-        affect.ref = "pkg:jenkins/plugin/${v.plugin}@${v.version}"
-        vuln.affects << affect
+            vuln.description = v.description ?: 'Security vulnerability detected'
 
-        sbom.vulnerabilities << vuln
+            vuln.affects = []
+            def affect = [:]
+            affect.ref = "pkg:jenkins/plugin/${v.plugin}@${v.version}"
+            vuln.affects << affect
+
+            sbom.vulnerabilities << vuln
+        }
     }
 
     return sbom
