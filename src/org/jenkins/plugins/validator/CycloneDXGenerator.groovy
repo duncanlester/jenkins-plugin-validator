@@ -5,20 +5,20 @@ import java.text.SimpleDateFormat
 
 class CycloneDXGenerator implements Serializable {
     private static final long serialVersionUID = 1L
-    
+
     private boolean enhanced = true
-    
+
     void setEnhanced(boolean enhanced) {
         this.enhanced = enhanced
     }
-    
+
     String generate(List plugins, List vulnerabilities) {
         def sdf = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'")
         sdf.setTimeZone(TimeZone.getTimeZone('UTC'))
         def timestamp = sdf.format(new Date())
-        
+
         def jenkinsVersion = Jenkins.instance.version.toString()
-        
+
         def sbom = [
             bomFormat: "CycloneDX",
             specVersion: "1.5",
@@ -29,10 +29,10 @@ class CycloneDXGenerator implements Serializable {
             dependencies: generateDependencies(plugins),
             vulnerabilities: generateVulnerabilities(vulnerabilities)
         ]
-        
+
         return groovy.json.JsonOutput.toJson(sbom)
     }
-    
+
     private Map generateMetadata(String timestamp, String jenkinsVersion) {
         return [
             timestamp: timestamp,
@@ -54,7 +54,7 @@ class CycloneDXGenerator implements Serializable {
             ]
         ]
     }
-    
+
     private List generateComponents(List plugins) {
         return plugins.collect { plugin ->
             def component = [
@@ -65,7 +65,7 @@ class CycloneDXGenerator implements Serializable {
                 description: plugin.longName,
                 purl: "pkg:jenkins/plugin/${plugin.shortName}@${plugin.version}"
             ]
-            
+
             if (enhanced) {
                 component.properties = [
                     [name: "jenkins:enabled", value: plugin.enabled.toString()],
@@ -73,7 +73,7 @@ class CycloneDXGenerator implements Serializable {
                     [name: "jenkins:hasUpdate", value: plugin.hasUpdate.toString()],
                     [name: "sbom:enhanced", value: "true"]
                 ]
-                
+
                 component.externalReferences = [
                     [
                         type: "website",
@@ -89,11 +89,11 @@ class CycloneDXGenerator implements Serializable {
                     [name: "jenkins:enabled", value: plugin.enabled.toString()]
                 ]
             }
-            
+
             return component
         }
     }
-    
+
     private List generateDependencies(List plugins) {
         return plugins.collect { plugin ->
             [
@@ -104,7 +104,7 @@ class CycloneDXGenerator implements Serializable {
             ]
         }
     }
-    
+
     private List generateVulnerabilities(List vulnerabilities) {
         return vulnerabilities.collect { vuln ->
             [
@@ -115,11 +115,11 @@ class CycloneDXGenerator implements Serializable {
                 ],
                 ratings: [
                     [
-                        severity: vuln.severity,
+                        severity: (vuln.severity ?: 'medium').toLowerCase(),  // Convert to lowercase
                         score: vuln.cvss,
                         method: "CVSSv3"
                     ]
-                ],
+                ]
                 description: vuln.description ?: "Security vulnerability in ${vuln.plugin}",
                 affects: [
                     [

@@ -2,26 +2,26 @@
 
 def call() {
     echo "📦 Generating Software Bill of Materials (SBOM)..."
-    
+
     def plugins = readJSON text: env.PLUGIN_DATA
     def vulns = readJSON text: (env.VULNERABILITIES ?: '[]')
-    
+
     echo "Building CycloneDX SBOM with ${plugins.size()} components and ${vulns.size()} vulnerabilities"
-    
+
     def timestamp = new Date().format("yyyy-MM-dd'T'HH:mm:ss'Z'", TimeZone.getTimeZone('UTC'))
     def jenkinsVersion = Jenkins.instance.version.toString()
-    
+
     def sbom = buildSBOM(plugins, vulns, timestamp, jenkinsVersion)
-    
+
     def sbomJson = groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(sbom))
     writeFile file: 'sbom.json', text: sbomJson
-    
+
     echo "✅ CycloneDX SBOM generated: ${sbom.components.size()} components, ${sbom.vulnerabilities.size()} vulnerabilities"
-    
+
     generateSBOMReport(sbom, plugins.size(), vulns)
-    
+
     archiveArtifacts artifacts: 'sbom.json,sbom-report.html,sbom-style.css'
-    
+
     echo "✅ SBOM files generated:"
     echo "   - sbom.json (CycloneDX 1.5 - includes ${vulns.size()} vulnerabilities)"
     echo "   - sbom-report.html (interactive report)"
@@ -37,22 +37,22 @@ def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
     sbom.metadata = [:]
     sbom.metadata.timestamp = timestamp
     sbom.metadata.tools = []
-    
+
     def tool = [:]
     tool.vendor = "Jenkins"
     tool.name = "plugin-validator"
     tool.version = "1.0.0"
     sbom.metadata.tools << tool
-    
+
     sbom.metadata.component = [:]
     sbom.metadata.component.type = "application"
     sbom.metadata.component.name = "Jenkins"
     sbom.metadata.component.version = jenkinsVersion
     sbom.metadata.component.description = "Jenkins Automation Server"
-    
+
     sbom.components = []
     sbom.vulnerabilities = []
-    
+
     plugins.each { p ->
         def component = [:]
         component.type = "library"
@@ -61,17 +61,17 @@ def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
         component.description = p.longName
         component.purl = "pkg:jenkins/plugin/${p.shortName}@${p.version}"
         component.properties = []
-        
+
         def enabledProp = [:]
         enabledProp.name = "enabled"
         enabledProp.value = p.enabled.toString()
         component.properties << enabledProp
-        
+
         def bundledProp = [:]
         bundledProp.name = "bundled"
         bundledProp.value = (p.bundled ?: false).toString()
         component.properties << bundledProp
-        
+
         if (p.url) {
             component.externalReferences = []
             def ref = [:]
@@ -79,48 +79,48 @@ def buildSBOM(plugins, vulns, timestamp, jenkinsVersion) {
             ref.url = p.url
             component.externalReferences << ref
         }
-        
+
         sbom.components << component
     }
-    
+
     vulns.each { v ->
         def vuln = [:]
         vuln.id = v.cve ?: 'UNKNOWN'
-        
+
         vuln.source = [:]
         vuln.source.name = "Jenkins Security Advisory"
         vuln.source.url = v.url ?: "https://www.jenkins.io/security/advisories/"
-        
+
         vuln.ratings = []
         def rating = [:]
-        rating.severity = v.severity ?: 'MEDIUM'
+        rating.severity = (v.severity ?: 'MEDIUM').toLowerCase()  // Convert to lowercase
         rating.score = v.cvss ?: 5.0
         rating.method = "CVSSv3"
         vuln.ratings << rating
-        
+
         vuln.description = v.description ?: 'Security vulnerability detected'
-        
+
         vuln.affects = []
         def affect = [:]
         affect.ref = "pkg:jenkins/plugin/${v.plugin}@${v.version}"
         vuln.affects << affect
-        
+
         sbom.vulnerabilities << vuln
     }
-    
+
     return sbom
 }
 
 def generateSBOMReport(sbom, componentCount, vulns) {
     def cssContent = libraryResource('report-style.css')
     writeFile file: 'sbom-style.css', text: cssContent
-    
+
     def serialNum = sbom.serialNumber.replaceAll('urn:uuid:', '')
     def vulnCount = vulns.size()
     def vulnColorClass = vulnCount > 0 ? 'color-danger' : 'color-success'
-    
+
     def html = buildReportHtml(sbom, serialNum, vulnColorClass, componentCount, vulns)
-    
+
     writeFile file: 'sbom-report.html', text: html
 }
 
@@ -139,7 +139,7 @@ def escapeHtml(str) {
 def buildReportHtml(sbom, serialNum, vulnColorClass, componentCount, vulns) {
     def html = new StringBuilder()
     def vulnCount = vulns.size()
-    
+
     html << '<!DOCTYPE html>\n'
     html << '<html lang="en">\n'
     html << '<head>\n'
@@ -199,7 +199,7 @@ def buildReportHtml(sbom, serialNum, vulnColorClass, componentCount, vulns) {
     html << '            </ul>\n'
     html << '        </div>\n'
     html << '        \n'
-    
+
     if (vulnCount > 0) {
         html << '        <div class="section">\n'
         html << "            <h2>🚨 Vulnerabilities (${vulnCount})</h2>\n"
@@ -216,11 +216,11 @@ def buildReportHtml(sbom, serialNum, vulnColorClass, componentCount, vulns) {
         html << '                    </tr>\n'
         html << '                </thead>\n'
         html << '                <tbody>\n'
-        
+
         vulns.each { v ->
             def purl = "pkg:jenkins/plugin/${v.plugin}@${v.version}"
             def cveUrl = escapeHtml(v.url ?: "https://www.jenkins.io/security/advisories/")
-            
+
             html << '                    <tr>\n'
             html << "                        <td><strong>${escapeHtml(v.plugin)}</strong></td>\n"
             html << "                        <td>${escapeHtml(v.version)}</td>\n"
@@ -230,7 +230,7 @@ def buildReportHtml(sbom, serialNum, vulnColorClass, componentCount, vulns) {
             html << "                        <td><code>${escapeHtml(purl)}</code></td>\n"
             html << '                    </tr>\n'
         }
-        
+
         html << '                </tbody>\n'
         html << '            </table>\n'
         html << '            <p class="sbom-intro" style="margin-top: 16px;"><strong>In sbom.json:</strong> Find these in the <code>"vulnerabilities": []</code> array at the bottom of the file.</p>\n'
@@ -244,7 +244,7 @@ def buildReportHtml(sbom, serialNum, vulnColorClass, componentCount, vulns) {
         html << '            </div>\n'
         html << '        </div>\n'
     }
-    
+
     html << '        <div class="section">\n'
     html << '            <h2>📚 Resources</h2>\n'
     html << '            <ul class="sbom-list">\n'
@@ -258,6 +258,6 @@ def buildReportHtml(sbom, serialNum, vulnColorClass, componentCount, vulns) {
     html << '    </div>\n'
     html << '</body>\n'
     html << '</html>\n'
-    
+
     return html.toString()
 }
