@@ -63,7 +63,7 @@ pipeline {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'dependency-track-api-key', variable: 'DEPENDENCY_TRACK_API_KEY')]) {
-                        def dtUrl = 'http://localhost:8081'
+                        def dtUrl = 'http://localhost:8081'  // Same port for simple version
 
                         try {
                             if (fileExists('sbom.json')) {
@@ -88,7 +88,7 @@ pipeline {
 
                                 echo "Uploading to: ${dtUrl}/api/v1/bom"
 
-                                // Upload using curl (removed env parameter)
+                                // Upload using curl
                                 def response = sh(
                                     script: '''#!/bin/bash
                                         set +x
@@ -107,7 +107,7 @@ pipeline {
 
                                 if (response == '200' || response == '201') {
                                     echo "✅ SBOM uploaded successfully to Dependency-Track"
-                                    echo "   View at: http://localhost:8082/projects"
+                                    echo "   View at: http://localhost:8081/projects"  // Changed to 8081
                                 } else {
                                     echo "⚠️  Upload returned status ${response}"
                                     if (fileExists('dt-response.json')) {
