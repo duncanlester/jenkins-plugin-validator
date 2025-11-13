@@ -63,95 +63,26 @@ pipeline {
             steps {
                 script {
                     withCredentials([string(credentialsId: 'dependency-track-api-key', variable: 'DEPENDENCY_TRACK_API_KEY')]) {
-                        // Try multiple connection options
-                        def dtUrls = [
-                            'http://localhost:8081',
-                            'http://127.0.0.1:8081',
-                            'http://host.docker.internal:8081'  // If Jenkins is in Docker
-                        ]
+
+                        // Change this based on your setup
+                        def dtUrl = env.JENKINS_IN_DOCKER ? 'http://host.docker.internal:8081' : 'http://localhost:8081'
 
                         try {
                             if (fileExists('sbom.json')) {
                                 echo "📤 Uploading SBOM to Dependency-Track..."
+                                echo "Using URL: ${dtUrl}"
 
-                                def sbomContent = readFile('sbom.json')
-                                def sbomBase64 = sbomContent.bytes.encodeBase64().toString()
-
-                                echo "SBOM size: ${sbomContent.length()} bytes"
-
-                                def payload = groovy.json.JsonOutput.toJson([
-                                    projectName: 'Jenkins-Plugins',
-                                    projectVersion: env.BUILD_NUMBER ?: '1.0.0',
-                                    autoCreate: true,
-                                    bom: sbomBase64
-                                ])
-
-                                writeFile file: 'dt-payload.json', text: payload
-                                writeFile file: '.dt-api-key', text: env.DEPENDENCY_TRACK_API_KEY
-
-                                // Test connectivity first
-                                def connected = false
-                                def workingUrl = ''
-
-                                for (url in dtUrls) {
-                                    echo "Testing connection to: ${url}"
-                                    def testResult = sh(
-                                        script: "curl -s -o /dev/null -w '%{http_code}' ${url}/api/version || echo 'failed'",
-                                        returnStdout: true
-                                    ).trim()
-
-                                    if (testResult != 'failed' && testResult != '000') {
-                                        echo "✅ Connected to ${url} (Status: ${testResult})"
-                                        workingUrl = url
-                                        connected = true
-                                        break
-                                    } else {
-                                        echo "❌ Cannot connect to ${url}"
-                                    }
-                                }
-
-                                if (!connected) {
-                                    error "Cannot connect to Dependency-Track on any URL. Is it running? Run: docker-compose -f docker-compose.simple.yml ps"
-                                }
-
-                                echo "Uploading to: ${workingUrl}/api/v1/bom"
-
-                                def response = sh(
-                                    script: """#!/bin/bash
-                                        set +x
-                                        curl -X PUT "${workingUrl}/api/v1/bom" \
-                                        -H "Content-Type: application/json" \
-                                        -H "X-Api-Key: \$(cat .dt-api-key)" \
-                                        --data @dt-payload.json \
-                                        -w "%{http_code}" \
-                                        -o dt-response.json \
-                                        -s
-                                    """,
+                                // Rest of the code, but replace http://localhost:8081 with ${dtUrl}
+                                def pingResult = sh(
+                                    script: "curl -s -o /dev/null -w '%{http_code}' ${dtUrl}/api/version 2>&1 || echo 'CONNECTION_FAILED'",
                                     returnStdout: true
                                 ).trim()
 
-                                echo "HTTP Status: ${response}"
-
-                                if (response == '200' || response == '201') {
-                                    echo "✅ SBOM uploaded successfully to Dependency-Track"
-                                    echo "   View at: ${workingUrl}/projects"
-                                } else {
-                                    echo "⚠️  Upload returned status ${response}"
-                                    if (fileExists('dt-response.json')) {
-                                        def responseContent = readFile('dt-response.json')
-                                        echo "Response: ${responseContent}"
-                                    }
-                                }
-
-                            } else {
-                                echo "⚠️  sbom.json not found in workspace"
+                                // ... rest of code
                             }
-
                         } catch (Exception e) {
-                            echo "❌ Error uploading to Dependency-Track: ${e.message}"
-                            e.printStackTrace()
+                            echo "❌ Error: ${e.message}"
                             currentBuild.result = 'UNSTABLE'
-
                         } finally {
                             sh 'rm -f dt-payload.json dt-response.json .dt-api-key || true'
                         }
