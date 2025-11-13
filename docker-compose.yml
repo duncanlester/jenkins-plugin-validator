@@ -1,75 +1,128 @@
 services:
-  dtrack-apiserver:
-    image: dependencytrack/apiserver:latest
-    container_name: dtrack-apiserver
-    environment:
-      ALPINE_DATABASE_MODE: external
-      ALPINE_DATABASE_URL: jdbc:postgresql://dtrack-postgres:5432/dtrack
-      ALPINE_DATABASE_DRIVER: org.postgresql.Driver
-      ALPINE_DATABASE_USERNAME: dtrack
-      ALPINE_DATABASE_PASSWORD: dtrack
-      ALPINE_SECRET_KEY_PATH: /data/.secret.key
-      ALPINE_DATA_DIRECTORY: /data
-      ALPINE_WORKER_THREADS: "4"
-      LOGGING_LEVEL: INFO
-    ports:
-      - "8081:8080"
-    volumes:
-      - dtrack-data:/data
-    depends_on:
-      - dtrack-postgres
-    networks:
-      - dtrack-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/version"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 120s
-
-  dtrack-frontend:
-    image: dependencytrack/frontend:latest
-    container_name: dtrack-frontend
-    environment:
-      API_BASE_URL: http://localhost:8081
-    ports:
-      - "8082:8080"
-    depends_on:
-      - dtrack-apiserver
-    networks:
-      - dtrack-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  dtrack-postgres:
+  postgres:
     image: postgres:16-alpine
     container_name: dtrack-postgres
     environment:
       POSTGRES_DB: dtrack
       POSTGRES_USER: dtrack
       POSTGRES_PASSWORD: dtrack
-      PGDATA: /var/lib/postgresql/data/pgdata
-    ports:
-      - "5432:5432"
     volumes:
-      - dtrack-postgres-data:/var/lib/postgresql/data
-    networks:
-      - dtrack-network
-    restart: unless-stopped
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dtrack"]
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - dtrack-network
+
+  dependency-track-apiserver:
+    image: dependencytrack/apiserver:latest
+    container_name: dtrack-apiserver
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ALPINE_DATABASE_MODE: external
+      ALPINE_DATABASE_URL: jdbc:postgresql://postgres:5432/dtrack
+      ALPINE_DATABASE_DRIVER: org.postgresql.Driver
+      ALPINE_DATABASE_USERNAME: dtrack
+      ALPINE_DATABASE_PASSWORD: dtrack
+    ports:
+      - "8081:8080"
+    volumes:
+      - apiserver-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080/api/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - dtrack-network
+
+  dependency-track-frontend:
+    image: dependencytrack/frontend:latest
+    container_name: dtrack-frontend
+    depends_on:
+      - dependency-track-apiserver
+    environment:
+      API_BASE_URL: http://dtrack-apiserver:8080
+    ports:
+      - "8082:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8080 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - dtrack-network
+  jenkins-master:
+    environment:
+      - JENKINS_OPTS="-Djenkins.install.runSetupWizard=false -Djava.security.egd=file:/dev/urandom"
+      - JAVA_OPTS="-Djenkins.install.runSetupWizard=false"
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_AGENT_NAME=agent-1
+    image: jenkins/jenkins:lts
+    container_name: jenkins-master
+    ports:
+      - "0.0.0.0:8080:8080"
+      - "0.0.0.0:50000:50000"
+    networks:
+      - dtrack-network
+    volumes:
+      - jenkins_home_data:/var/jenkins_home
+      - jenkins_plugins:/var/jenkins_home/plugins
+      - jenkins_plugin_backup:/plugin_backup
+    restart: always
+    secrets:
+      - admin_password
+  jenkins-agent-1:
+    image: jenkins/inbound-agent
+    environment:
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_SECRET=<secret-1>
+      - JENKINS_AGENT_NAME=agent-1
+    networks:
+      - dtrack-network
+    depends_on:
+      - jenkins-master
+
+  jenkins-agent-2:
+    image: jenkins/inbound-agent
+    environment:
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_SECRET=<secret-2>
+      - JENKINS_AGENT_NAME=agent-2
+    networks:
+      - dtrack-network
+    depends_on:
+      - jenkins-master
+
+  jenkins-agent-3:
+    image: jenkins/inbound-agent
+    environment:
+      - JENKINS_URL=http://jenkins-master:8080
+      - JENKINS_SECRET=<secret-3>
+      - JENKINS_AGENT_NAME=agent-3
+    networks:
+      - dtrack-network
+    depends_on:
+      - jenkins-master
+
+secrets:
+  admin_password:
+    file: admin_password.txt
 
 volumes:
-  dtrack-data:
-  dtrack-postgres-data:
+  jenkins_home_data:
+    name: jenkins_home_data
+  jenkins_plugins:
+    name: jenkins_plugins
+  jenkins_plugin_backup:
+    name: jenkins_plugin_backup
+  postgres-data:
+  apiserver-data:
+  jenkins-data:
 
 networks:
   dtrack-network:

@@ -79,23 +79,33 @@ pipeline {
                             writeFile file: 'dt-payload.json', text: payload
 
                             sh '''
-                                # Try different URLs (8080 for full version API)
-                                URLS="http://localhost:8080 http://host.docker.internal:8080"
+                                # FIXED: Use port 8080 for container name, 8081 for host
+                                URLS="http://dtrack-apiserver:8080 http://host.docker.internal:8081 http://localhost:8081"
                                 WORKING_URL=""
 
+                                echo "=== Testing Dependency-Track connectivity ==="
+
                                 for URL in $URLS; do
+                                    echo "Testing: $URL"
                                     if curl -s -f -m 5 "$URL/api/version" > /dev/null 2>&1; then
                                         WORKING_URL="$URL"
-                                        echo "✅ Connected to $URL"
+                                        echo "✅ SUCCESS: Connected to $URL"
                                         break
+                                    else
+                                        echo "❌ FAILED: Could not connect to $URL"
                                     fi
                                 done
 
                                 if [ -z "$WORKING_URL" ]; then
-                                    echo "❌ Cannot connect to Dependency-Track"
+                                    echo "❌ Cannot connect to Dependency-Track on any URL"
+                                    echo ""
+                                    echo "Debug info:"
+                                    echo "Networks:"
+                                    ip addr show 2>/dev/null || echo "Cannot show network info"
                                     exit 1
                                 fi
 
+                                echo ""
                                 echo "=== Uploading SBOM to $WORKING_URL ==="
 
                                 HTTP_CODE=$(curl -X PUT "$WORKING_URL/api/v1/bom" \
@@ -111,9 +121,9 @@ pipeline {
 
                                 if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ]; then
                                     echo "✅ SBOM uploaded successfully"
-                                    echo "   View at: http://localhost:8082/projects (UI on port 8082)"
+                                    echo "   View at: http://localhost:8082/projects"
                                 else
-                                    echo "⚠️ Upload returned status ${HTTP_CODE}"
+                                    echo "⚠️ Upload failed with status ${HTTP_CODE}"
                                     cat dt-response.json
                                     exit 1
                                 fi
