@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   dtrack-apiserver:
     image: dependencytrack/apiserver:latest

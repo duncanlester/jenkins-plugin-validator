@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   dependency-track:
     image: dependencytrack/bundled:latest
