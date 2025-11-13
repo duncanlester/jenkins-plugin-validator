@@ -69,8 +69,6 @@ pipeline {
                             def sbomContent = readFile('sbom.json')
                             def sbomBase64 = sbomContent.bytes.encodeBase64().toString()
 
-                            echo "SBOM file size: ${sbomContent.length()} bytes"
-
                             def payload = groovy.json.JsonOutput.toJson([
                                 projectName: 'Jenkins-Plugins',
                                 projectVersion: env.BUILD_NUMBER ?: '1.0.0',
@@ -80,30 +78,24 @@ pipeline {
 
                             writeFile file: 'dt-payload.json', text: payload
 
-                            echo "=== Testing Dependency-Track connectivity ==="
                             sh '''
-                                # Try different URLs to find working connection
-                                URLS="http://localhost:8081 http://host.docker.internal:8081 http://dependency-track:8080"
+                                # Try different URLs (8080 for full version API)
+                                URLS="http://localhost:8080 http://host.docker.internal:8080"
                                 WORKING_URL=""
 
                                 for URL in $URLS; do
-                                    echo "Testing: $URL/api/version"
                                     if curl -s -f -m 5 "$URL/api/version" > /dev/null 2>&1; then
-                                        echo "✅ SUCCESS: $URL is reachable"
                                         WORKING_URL="$URL"
+                                        echo "✅ Connected to $URL"
                                         break
-                                    else
-                                        echo "❌ FAILED: $URL not reachable"
                                     fi
                                 done
 
                                 if [ -z "$WORKING_URL" ]; then
-                                    echo "❌ Could not connect to Dependency-Track on any URL"
-                                    echo "Tried: $URLS"
+                                    echo "❌ Cannot connect to Dependency-Track"
                                     exit 1
                                 fi
 
-                                echo ""
                                 echo "=== Uploading SBOM to $WORKING_URL ==="
 
                                 HTTP_CODE=$(curl -X PUT "$WORKING_URL/api/v1/bom" \
@@ -118,23 +110,18 @@ pipeline {
                                 echo "HTTP Status: ${HTTP_CODE}"
 
                                 if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ]; then
-                                    echo "✅ SBOM uploaded successfully to Dependency-Track"
-                                    echo "   Using URL: $WORKING_URL"
-                                    echo "   View at: http://localhost:8081/projects (or host machine)"
+                                    echo "✅ SBOM uploaded successfully"
+                                    echo "   View at: http://localhost:8082/projects (UI on port 8082)"
                                 else
                                     echo "⚠️ Upload returned status ${HTTP_CODE}"
-                                    if [ -f dt-response.json ]; then
-                                        echo "Response:"
-                                        cat dt-response.json
-                                    fi
+                                    cat dt-response.json
                                     exit 1
                                 fi
                             '''
 
-                            sh 'rm -f dt-payload.json dt-response.json curl-output.log || true'
+                            sh 'rm -f dt-payload.json dt-response.json || true'
                         } else {
-                            echo "⚠️  sbom.json not found in workspace"
-                            sh 'ls -la'
+                            echo "⚠️  sbom.json not found"
                         }
                     }
                 }
