@@ -62,66 +62,88 @@ pipeline {
         stage('Upload SBOM to Dependency-Track') {
             steps {
                 script {
-                    withCredentials([string(credentialsId: 'dependency-track-api-key', variable: 'DEPENDENCY_TRACK_API_KEY')]) {
+                    withCredentials([string(credentialsId: 'dependency-track-api-key', variable: 'DT_API_KEY')]) {
+                        if (fileExists('sbom.json')) {
+                            echo "📤 Uploading SBOM to Dependency-Track..."
 
-                        try {
-                            if (fileExists('sbom.json')) {
-                                echo "📤 Uploading SBOM to Dependency-Track..."
+                            // Debug: Test basic curl first
+                            echo "=== Debug: Testing curl to Dependency-Track ==="
+                            sh '''
+                                echo "Test 1: Basic curl to version endpoint"
+                                curl http://localhost:8081/api/version || true
 
-                                // Simple connectivity test
-                                sh 'curl -f http://localhost:8081/api/version'
-                                echo "✅ Dependency-Track is reachable"
+                                echo ""
+                                echo "Test 2: Check if curl can resolve localhost"
+                                ping -c 1 localhost || true
 
-                                def sbomContent = readFile('sbom.json')
-                                def sbomBase64 = sbomContent.bytes.encodeBase64().toString()
+                                echo ""
+                                echo "Test 3: Check network connectivity"
+                                netstat -an | grep 8081 || true
 
-                                echo "SBOM size: ${sbomContent.length()} bytes"
+                                echo ""
+                                echo "Test 4: Current user"
+                                whoami
 
-                                def payload = groovy.json.JsonOutput.toJson([
-                                    projectName: 'Jenkins-Plugins',
-                                    projectVersion: env.BUILD_NUMBER ?: '1.0.0',
-                                    autoCreate: true,
-                                    bom: sbomBase64
-                                ])
+                                echo ""
+                                echo "Test 5: Working directory"
+                                pwd
+                                ls -la
+                            '''
 
-                                writeFile file: 'dt-payload.json', text: payload
-                                writeFile file: '.dt-api-key', text: env.DEPENDENCY_TRACK_API_KEY
+                            def sbomContent = readFile('sbom.json')
+                            def sbomBase64 = sbomContent.bytes.encodeBase64().toString()
 
-                                echo "Uploading SBOM..."
+                            echo "SBOM file size: ${sbomContent.length()} bytes"
+                            echo "Base64 size: ${sbomBase64.length()} characters"
 
-                                // Simplified curl command
-                                sh '''
-                                    HTTP_CODE=$(curl -X PUT "http://localhost:8081/api/v1/bom" \
-                                    -H "Content-Type: application/json" \
-                                    -H "X-Api-Key: $(cat .dt-api-key)" \
-                                    --data @dt-payload.json \
-                                    -w "%{http_code}" \
-                                    -o dt-response.json \
-                                    -s)
+                            def payload = groovy.json.JsonOutput.toJson([
+                                projectName: 'Jenkins-Plugins',
+                                projectVersion: env.BUILD_NUMBER ?: '1.0.0',
+                                autoCreate: true,
+                                bom: sbomBase64
+                            ])
 
-                                    echo "HTTP Status: ${HTTP_CODE}"
+                            writeFile file: 'dt-payload.json', text: payload
 
-                                    if [ "${HTTP_CODE}" = "200" ] || [ "${HTTP_CODE}" = "201" ]; then
-                                        echo "✅ SBOM uploaded successfully"
-                                    else
-                                        echo "⚠️  Upload returned status ${HTTP_CODE}"
-                                        cat dt-response.json
-                                    fi
-                                '''
+                            echo "Payload file created, size: ${payload.length()} bytes"
 
-                                echo "View results at: http://localhost:8081/projects"
+                            // Verify files exist
+                            sh '''
+                                echo "=== Verifying files ==="
+                                ls -lh dt-payload.json
+                                echo "API Key length: ${#DT_API_KEY}"
+                            '''
 
-                            } else {
-                                echo "⚠️  sbom.json not found in workspace"
-                                sh 'ls -la'
-                            }
+                            echo "=== Attempting upload ==="
+                            sh '''
+                                set -x  # Enable command echoing for debugging
 
-                        } catch (Exception e) {
-                            echo "❌ Error: ${e.message}"
-                            currentBuild.result = 'UNSTABLE'
+                                curl -X PUT "http://localhost:8081/api/v1/bom" \
+                                -H "Content-Type: application/json" \
+                                -H "X-Api-Key: ${DT_API_KEY}" \
+                                --data @dt-payload.json \
+                                -w "\\nHTTP_STATUS:%{http_code}\\n" \
+                                -v \
+                                2>&1 | tee curl-output.log
 
-                        } finally {
-                            sh 'rm -f dt-payload.json dt-response.json .dt-api-key || true'
+                                CURL_EXIT=$?
+                                echo "Curl exit code: ${CURL_EXIT}"
+
+                                if [ ${CURL_EXIT} -ne 0 ]; then
+                                    echo "❌ Curl failed with exit code ${CURL_EXIT}"
+                                    echo "Exit code 7 = Failed to connect to host"
+                                    echo "Exit code 6 = Couldn't resolve host"
+                                    echo "Exit code 28 = Timeout"
+                                fi
+                            '''
+
+                            echo "✅ Upload stage complete"
+                            echo "View results at: http://localhost:8081/projects"
+
+                            sh 'rm -f dt-payload.json || true'
+                        } else {
+                            echo "⚠️  sbom.json not found in workspace"
+                            sh 'ls -la'
                         }
                     }
                 }
